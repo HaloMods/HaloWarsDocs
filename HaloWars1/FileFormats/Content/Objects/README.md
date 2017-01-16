@@ -1,4 +1,4 @@
 
-* (.blueprint)[HaloWars1/FileFormats/Content/Objects/BLUEPRINT.md]
-* (.physics)[HaloWars1/FileFormats/Content/Objects/PHYSICS.md]
+* [.blueprint](BLUEPRINT.md)
+* [.physics](PHYSICS.md)
 
