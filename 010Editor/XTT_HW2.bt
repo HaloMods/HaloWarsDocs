@@ -1,0 +1,290 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: XTT_HW2.bt
+//    Author: kornman00
+//   Version: 0.1
+//   Purpose: Parse HaloWars2 XTT files.
+//  Category: HaloWars
+// File Mask: *.xtt
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum eDDXDataFormat_HW2
+{
+	cDDXDataFormatInvalid = 0,
+	R8 = 1,
+	A8 = 2,
+	R8G8 = 3,
+	//4
+	//5
+	R8G8B8A8 = 6,
+	R8G8B8A8_SRGB = 7,
+	R16G16 = 8,
+	R16G16U = 9,
+	R16G16F = 10,
+	R32G32F = 11,
+	R32F = 12,
+	R32U = 13,
+	R32_TYPELESS = 14,
+	DXT1 = 15,
+	DXT3 = 16,
+	DXT5 = 17,
+	D24S8 = 18,
+	D32F = 19,
+	D32FS8 = 20,
+	D16 = 21,
+	R16 = 22,
+	R16G16B16A16 = 23,
+	R16G16B16A16_UINT = 24,
+	R16G16B16A16F = 25,
+	R32G32B32A32_UINT = 26,
+	R32G32B32A32F = 27,
+	R10G10B10A2 = 28,
+	R11G11B10F = 29,
+	BC1_SRGB = 30,
+	BC2_SRGB = 31,
+	BC3_SRGB = 32,
+	BC5_UNORM = 33,
+	BC5_SNORM = 34,
+	BC6H = 35,
+	BC7 = 36,
+	BC7_SRGB = 37,
+	R16F = 38,
+
+	cDDXDataFormatMax,
+};
+DWORD DDXDataFormatGetBitsPerPixel(eDDXDataFormat_HW2 format)
+{
+	switch (format)
+	{
+		case R8:
+		case A8:
+		case DXT5:
+		case BC3_SRGB:
+		case BC5_UNORM:
+		case BC5_SNORM:
+		case BC6H:
+		case BC7:
+		case BC7_SRGB:
+			return 8;
+
+		case R8G8:
+		case D16:
+		case R16F:
+			return 16;
+
+		case 4:
+		case 5:
+		case R8G8B8A8:
+		case R8G8B8A8_SRGB:
+		case R16G16:
+		case R16G16U:
+		case R16G16F:
+		case R32F:
+		case R32U:
+		case R32_TYPELESS:
+		case R10G10B10A2:
+		case R11G11B10F:
+			return 32;
+
+		case R32G32F:
+		case R16G16B16A16:
+		case R16G16B16A16_UINT:
+		case R16G16B16A16F:
+			return 64;
+
+		case R32G32B32A32_UINT:
+		case R32G32B32A32F:
+			return 128;
+
+		case DXT1:
+		case DXT3:
+		case BC1_SRGB:
+		case BC2_SRGB:
+			return 4;
+	}
+
+	//D24S8,D32F,D32FS8,R16
+	return 0;
+}
+
+typedef struct
+{
+	char FileName[260];
+}XTT_TextureFileName <name=XTT_TextureFileNameGetName>;
+string XTT_TextureFileNameGetName(XTT_TextureFileName& texture)
+{
+	return texture.FileName;
+}
+
+enum
+{
+	cXTT_Version               = 0x0006,
+	cXTT_Version_BSWAPPED      = 0x06000000,
+
+	cXTT_XTTHeader             = 0x1111,
+	cXTT_TerrainAtlasLinkChunk = 0x2222,
+
+	cXTT_AtlasChunkAlbedo      = 0x6666,
+
+	cXTT_CCCC                  = 0xCCCC,
+
+	cAlphaLayersFormat = R8G8B8A8, // HW1 = D3DFMT_A4R4G4B4
+	cAlphaTextureWidth = 64,
+	cAlphaTextureHeight = 64,
+};
+
+struct XTT_XTTHeader
+{
+	int Version;
+	if (Version != cXTT_Version)
+		return;
+
+	int NumTextures;
+	//[AL], [NM], [SP], [PM], [PA], [BT]
+	if (NumTextures > 0)
+		XTT_TextureFileName Textures[ NumTextures ] <optimize=true>;
+
+	int Unknown0;
+	int Unknown1;
+	int Unknown2;
+};
+
+typedef struct
+{
+	local int64 chunkStart = FTell();
+
+	int GridX, GridZ;
+	int NumUnknown0Layers;
+	int NumUnknown1Layers;
+
+	if (NumUnknown1Layers > 0)
+		int Unknown1LayerIds[ NumUnknown1Layers ] <optimize=true>;
+
+	if (NumUnknown0Layers > 0)
+		int Unknown0LayerIds[ NumUnknown0Layers ] <optimize=true>;
+
+	if (NumUnknown0Layers <= 1)
+		return;
+
+	if (NumUnknown0Layers > 0)
+	{
+		local int numAlignedLayers = ((NumUnknown0Layers-1)>>2)+1;
+		local DWORD memSize = DDXDataFormatGetBitsPerPixel(cAlphaLayersFormat);
+		memSize *= cAlphaTextureWidth;
+		memSize *= cAlphaTextureHeight;
+		memSize >>= 3; // bits to bytes
+		memSize *= numAlignedLayers;
+		if (memSize > 0)
+			BYTE Splats[ memSize ] <optimize=true>;
+	}
+
+	//local int64 leftoverSize = ECFChunkIterator_Size - (FTell() - chunkStart);
+	//if (leftoverSize > 0)
+	//	BYTE Mem[ leftoverSize ] <optimize=true>;
+
+} XTT_TerrainAtlasLinkChunk <name=XTT_TerrainAtlasLinkChunkGetName>;
+string XTT_TerrainAtlasLinkChunkGetName(XTT_TerrainAtlasLinkChunk& chunk)
+{
+	local string name;
+	SPrintf(name, "TerrainAtlasLinkChunk(%d, %d)", chunk.GridX, chunk.GridZ);
+	return name;
+}
+
+struct XTT_AtlasChunkAlbedo
+{
+	local int64 chunkStart = FTell();
+
+	int TextureWidth;
+	int TextureHeight;
+	int TextureMipCount;
+
+	int PermanentAlbedoSize;
+	if (PermanentAlbedoSize > 0)
+		BYTE PermanentAlbedo[ PermanentAlbedoSize ] <optimize=true>;
+
+	int PermanentNormalsSize;
+	if (PermanentNormalsSize > 0)
+		BYTE PermanentNormals[ PermanentNormalsSize ] <optimize=true>;
+
+	int PermanentSpecSize;
+	if (PermanentSpecSize > 0)
+		BYTE PermanentSpec[ PermanentSpecSize ] <optimize=true>;
+
+	int PermanentParamsSize;
+	if (PermanentParamsSize > 0)
+		BYTE PermanentParams[ PermanentParamsSize ] <optimize=true>;
+
+	int PermanentParallaxSize;
+	if (PermanentParallaxSize > 0)
+		BYTE PermanentParallax[ PermanentParallaxSize ] <optimize=true>;
+};
+
+struct XTT_CCCC
+{
+	int NumTextures;
+	if (NumTextures > 0)
+	{
+		//[AL], [NM], [SP], [PM], [PA], [NA]
+		XTT_TextureFileName Textures[ NumTextures ] <optimize=true>;
+
+		struct UnknownStruct
+		{
+			int Unknown0;
+			float Unknown1;
+			float Unknown2;
+			float Unknown3;
+			float Unknown4;
+			float Unknown5;
+		};
+		int NumUnknownStruct;
+		if (NumUnknownStruct > 0)
+			UnknownStruct Unknown0[ NumUnknownStruct ] <optimize=true>;
+	}
+};
+
+
+struct ECF_XTH_HW2
+{
+	if (SeekToChunkById(FileStream, cXTT_XTTHeader) < 0)
+		return;
+	XTT_XTTHeader Header;
+	if (Header.Version != cXTT_Version)
+		return;
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cXTT_TerrainAtlasLinkChunk:
+				XTT_TerrainAtlasLinkChunk TerrainAtlasLinkChunk;
+				break;
+			case cXTT_AtlasChunkAlbedo:
+				XTT_AtlasChunkAlbedo AtlasChunkAlbedo;
+				break;
+			case cXTT_CCCC:
+				XTT_CCCC CCCC;
+				break;
+
+			case cXTT_XTTHeader:
+				// we've already handled this at the start
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+LittleEndian();
+ECF_XTH_HW2 XTH;

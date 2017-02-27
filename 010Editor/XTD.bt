@@ -1,0 +1,133 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: XTD.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse HaloWars XTD files.
+//  Category: HaloWars
+// File Mask: *.xtd
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum
+{
+	cXTD_Version               = 0x000C,
+
+	cXTD_XTDHeader             = 0x1111,
+	cXTD_TerrainChunk          = 0x2222,
+	// 0x4444 unused
+	// 0x6666 unused
+	cXTD_AtlasChunk            = 0x8888,
+	cXTD_TessChunk             = 0xAAAA,
+	cXTD_LightingChunk         = 0xBBBB,
+	cXTD_AOChunk               = 0xCCCC, // D3DFMT_LIN_DXT5A
+	cXTD_AlphaChunk            = 0xDDDD, // D3DFMT_LIN_DXT5A
+};
+
+struct XTD_XTDHeader
+{
+	int Version;
+	if (Version != cXTD_Version)
+		return;
+
+	int NumXVerts;
+	int NumXChunks;
+	float TileScale;
+	AABB World;
+};
+
+typedef struct
+{
+	int GridX, GridZ;
+	int MaxVStride;
+	AABB M;
+	UCHAR CanCastShadows;
+} XTD_TerrainChunk <name=XTD_TerrainChunkGetName>;
+string XTD_TerrainChunkGetName(XTD_TerrainChunk& chunk)
+{
+	local string name;
+	SPrintf(name, "TerrainChunk(%d, %d)", chunk.GridX, chunk.GridZ);
+	return name;
+}
+
+struct XTD_AtlasChunk(DWORD chunk_total_size)
+{
+	XMVECTOR PosCompMin;
+	XMVECTOR PosCompRange;
+
+	local DWORD MemSize = chunk_total_size - (sizeof(XMVECTOR) * 2);
+	if (MemSize > 0)
+		BYTE Mem[ MemSize ] <optimize=true>;
+};
+
+struct XTD_TessChunk
+{
+	struct PatchBB
+	{
+		XMVECTOR Min;
+		XMVECTOR Max;
+	};
+
+	int NumXPatches, NumZPatches;
+
+	local int numQuads = NumXPatches * NumZPatches;
+	if (numQuads > 0)
+		BYTE MaxPatchTessallation[ numQuads ] <optimize=true>;
+
+	if (numQuads > 0)
+		PatchBB PatchBBs[ numQuads ] <optimize=true>; 
+};
+
+struct ECF_XTH
+{
+	if (SeekToChunkById(FileStream, cXTD_XTDHeader) < 0)
+		return;
+	XTD_XTDHeader Header;
+	if (Header.Version != cXTD_Version)
+		return;
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cXTD_TerrainChunk:
+				XTD_TerrainChunk TerrainChunk;
+				break;
+			case cXTD_AtlasChunk:
+				XTD_AtlasChunk AtlasChunk(ECFChunkIterator_Size);
+				break;
+			case cXTD_TessChunk:
+				break;
+			case cXTD_LightingChunk:
+				int LightingMemSize;
+				if (LightingChunkMemSize > 0)
+					BYTE LightingChunk[ LightingChunkMemSize ] <optimize=true>;
+				break;
+			case cXTD_AOChunk:
+				BYTE AO[ ECFChunkIterator_Size ] <optimize=true>;
+				break;
+			case cXTD_AlphaChunk:
+				BYTE Alpha[ ECFChunkIterator_Size ] <optimize=true>;
+				break;
+
+			case cXTD_XTDHeader:
+				// we've already handled this at the start
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_XTH XTH;

@@ -1,0 +1,211 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: XTT.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse HaloWars XTT files.
+//  Category: HaloWars
+// File Mask: *.xtt
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+typedef char XTT_FileName[256];
+
+enum
+{
+	cXTT_Version               = 0x0004,
+
+	cXTT_XTTHeader             = 0x1111,
+	cXTT_TerrainAtlasLinkChunk = 0x2222,
+
+	cXTT_AtlasChunkAlbedo      = 0x6666,
+	cXTT_RoadChunk             = 0x8888,
+	cXTT_FoliageHeaderChunk    = 0xAAAA,
+	cXTT_FoliageQNChunk        = 0xBBBB,
+
+	cAlphaLayersFormatSize = sizeof(uint16), // D3DFMT_A4R4G4B4
+	cAlphaTextureWidth = 64,
+	cAlphaTextureHeight = 64,
+};
+
+struct XTT_XTTHeader
+{
+	int Version;
+	if (Version != cXTT_Version)
+		return;
+
+	int NumActiveTextures;
+	int NumActiveDecals;
+	int NumActiveDecalInstances;
+};
+
+struct XTT_TerrainActiveTextureInfo
+{
+	XTT_FileName FileName;
+	int UScale, VScale;
+	int BlendOp;
+};
+
+struct XTT_TerrainActiveDecalInfo
+{
+	XTT_FileName FileName;
+};
+
+struct XTT_TerrainActiveDecalInstanceInfo
+{
+	int ActiveDecalIndex;
+	float Rotation;
+	float TileCenterX, TileCenterY;
+	float UScale, VScale;
+};
+
+typedef struct
+{
+	int GridX, GridZ;
+	boolean SpecPassNeeded;
+	boolean SelfPassNeeded;
+	boolean EnvMaskPassNeeded;
+	boolean AlphaPassNeeded;
+	boolean IsFullyOpaque;
+
+	int NumSplatLayers;
+	int NumDecalLayers;
+
+	if (NumSplatLayers > 0)
+	{
+		int SplatLayerIds[ NumSplatLayers ] <optimize=true>;
+
+		local int numAlignedLayers = ((NumSplatLayers-1)>>2)+1;
+		local int memSize = numAlignedLayers * (cAlphaTextureWidth * cAlphaTextureHeight * cAlphaLayersFormatSize);
+		BYTE Splats[ memSize ] <optimize=true>;
+	}
+
+	if (NumDecalLayers > 0)
+	{
+		int DecalLayerIds[ NumDecalLayers ] <optimize=true>;
+
+		local int numAlignedLayers = ((NumDecalLayers-1)>>2)+1;
+		local int memSize = numAlignedLayers * (cAlphaTextureWidth * cAlphaTextureHeight * cAlphaLayersFormatSize);
+		BYTE Decals[ memSize ] <optimize=true>;
+	}
+} XTT_TerrainAtlasLinkChunk <name=XTT_TerrainAtlasLinkChunkGetName>;
+string XTT_TerrainAtlasLinkChunkGetName(XTT_TerrainAtlasLinkChunk& chunk)
+{
+	local string name;
+	SPrintf(name, "TerrainAtlasLinkChunk(%d, %d)", chunk.GridX, chunk.GridZ);
+	return name;
+}
+
+struct XTT_AtlasChunkAlbedo
+{
+	int MemSize;
+	int LargeUniqueTextureWidth;
+	int LargeUniqueTextureHeight;
+	int LargeUniqueTextureMipCount;
+
+	if (MemSize > 0)
+		BYTE Mem[ MemSize ] <optimize=true>; // D3DFMT_DXT1
+};
+
+struct XTT_RoadChunk
+{
+	struct QNChunk
+	{
+		int QNParentIndex;
+		int NumPrims;
+		int MemSize;
+		if (MemSize > 0)
+			BYTE Mem[ MemSize ] <optimize=true>;
+	};
+
+	XTT_FileName TextureFileName;
+	int NumChucks;
+	if (NumChucks > 0)
+		QNChunk Chunks[ NumChucks ] <optimize=true>;
+};
+
+struct XTT_FoliageHeaderChunk
+{
+	DWORD NumSets;
+	if (NumSets > 0)
+		XTT_FileName SetFileNames[ NumSets ] <optimize=true>;
+};
+
+struct XTT_FoliageQNChunk
+{
+	int QNParentIndex;
+	int NumSets;
+
+	if (NumSets > 0)
+		int SetIndexes[ NumSets ] <optimize=true>;
+
+	if (NumSets > 0)
+		int SetPolyCounts[ NumSets ] <optimize=true>;
+
+	int TotalMemorySize;
+
+	if (NumSets > 0)
+		int IndexBufferSizes[ NumSets ] <optimize=true>;
+
+	if (TotalMemorySize > 0)
+		BYTE Memory[ TotalMemorySize ] <optimize=true>;
+};
+
+struct ECF_XTH
+{
+	if (SeekToChunkById(FileStream, cXTT_XTTHeader) < 0)
+		return;
+	XTT_XTTHeader Header;
+	if (Header.Version != cXTT_Version)
+		return;
+
+	if (Header.NumActiveTextures > 0)
+		XTT_TerrainActiveTextureInfo ActiveTextures[ Header.NumActiveTextures ] <optimize=true>;
+
+	if (Header.NumActiveDecals > 0)
+	{
+		XTT_TerrainActiveDecalInfo ActiveDecals[ Header.NumActiveDecals ] <optimize=true>;
+		XTT_TerrainActiveDecalInstanceInfo ActiveDecalInstances[ Header.NumActiveDecalInstances ] <optimize=true>;
+	}
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cXTT_TerrainAtlasLinkChunk:
+				XTT_TerrainAtlasLinkChunk TerrainAtlasLinkChunk;
+				break;
+			case cXTT_AtlasChunkAlbedo:
+				XTT_AtlasChunkAlbedo AtlasChunkAlbedo;
+				break;
+			case cXTT_RoadChunk:
+				XTT_RoadChunk RoadChunk;
+				break;
+			case cXTT_FoliageHeaderChunk:
+				XTT_FoliageHeaderChunk FoliageHeaderChunk;
+				break;
+			case cXTT_FoliageQNChunk:
+				XTT_FoliageQNChunk FoliageQNChunk;
+				break;
+
+			case cXTT_XTTHeader:
+				// we've already handled this at the start
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_XTH XTH;

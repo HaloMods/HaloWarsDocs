@@ -1,0 +1,56 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: HaloWarsUtils.bt
+//    Author: kornman00
+//   Version: 0.1
+//   Purpose: Misc utils for parsing HaloWars binary files.
+//  Category: HaloWars
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+typedef int boolean;
+
+typedef USHORT HALF;
+
+typedef struct
+{
+	float x,y,z;
+} Vector3F <read=Vector3FRead, write=Vector3FWrite>;
+string Vector3FRead(Vector3F& v)
+{
+	string s;
+	SPrintf(s, "(%f, %f, %f)", v.x, v.y, v.z);
+	return s;
+}
+void Vector3FWrite(Vector3F& v, string s)
+{
+	SScanf(s, "(%f, %f, %f)", v.x, v.y, v.z);
+}
+
+typedef struct
+{
+	float x,y,z,w;
+} XMVECTOR <read=XMVECTORRead, write=XMVECTORWrite>;
+string XMVECTORRead(XMVECTOR& v)
+{
+	string s;
+	SPrintf(s, "(%f, %f, %f, %f)", v.x, v.y, v.z, v.w);
+	return s;
+}
+void XMVECTORWrite(XMVECTOR& v, string s)
+{
+	SScanf(s, "(%f, %f, %f, %f)", v.x, v.y, v.z, v.w);
+}
+
+struct AABB
+{
+	Vector3F Min,Max;
+};
+
+struct XMMATRIX
+{
+	float M[16];
+};

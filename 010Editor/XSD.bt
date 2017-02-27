@@ -1,0 +1,118 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: XSD.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse HaloWars XSD files.
+//  Category: HaloWars
+// File Mask: *.xsd
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum
+{
+	cXSD_Version         = 0x0004,
+
+	cXSD_XSDHeader       = 0x1111,
+	cXSD_SimHeights      = 0x2222, // HALF [NumCacheFriendlyXVerts^2]
+	cXSD_Obstructions    = 0x4444, // BYTE [NumXDataTiles^2]
+	cXSD_TileTypes       = 0x8888, // BYTE [NumXDataTiles^2]
+	cXSD_CamHeights      = 0xAAAA,
+	cXSD_FlightHeights   = 0xABBB,
+	cXSD_Buildable       = 0xCCCC, // BYTE [NumXDataTiles^2]
+	//0xDDDD unused
+	//0xEEEE unused
+	cXSD_FFFF            = 0xFFFF, // HW2
+};
+
+struct XSD_XSDHeader
+{
+	int Version;
+	if (Version != cXSD_Version)
+		return;
+
+	int NumXDataTiles;
+	float DataTileScale;
+	float VisualToSimScalar;
+
+	int NumXHeightVerts;
+	int NumCacheFriendlyXVerts;
+	float HeightTileScale;
+
+	int DataTileToHeighVertScalar;
+};
+
+typedef struct
+{
+	int NumXHeightVerts;
+	int NumCacheFriendlyXVerts;
+	float HeightTileScale;
+
+	if (NumCacheFriendlyXVerts > 0)
+		HALF Heights[ NumCacheFriendlyXVerts * NumCacheFriendlyXVerts ] <optimize=true>;
+} XSD_CamHeights, XSD_FlightHeights;
+
+struct XSD_FFFF
+{
+	DWORD Count;
+
+	if (Count > 0)
+		AABB Bounds[Count] <optimize=true>;
+};
+
+struct ECF_XSD
+{
+	if (SeekToChunkById(FileStream, cXSD_XSDHeader) < 0)
+		return;
+	XSD_XSDHeader Header;
+	if (Header.Version != cXSD_Version)
+		return;
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cXSD_SimHeights:
+				HALF SimHeights[Header.NumCacheFriendlyXVerts * Header.NumCacheFriendlyXVerts] <optimize=true>;
+				break;
+			case cXSD_Obstructions:
+				BYTE Obstructions[Header.NumXDataTiles * Header.NumXDataTiles] <optimize=true>;
+				break;
+			case cXSD_TileTypes:
+				BYTE TileTypes[Header.NumXDataTiles * Header.NumXDataTiles] <optimize=true>;
+				break;
+			case cXSD_CamHeights:
+				XSD_CamHeights CamHeights;
+				break;
+			case cXSD_FlightHeights:
+				XSD_FlightHeights FlightHeights;
+				break;
+			case cXSD_Buildable:
+				BYTE Buildable[Header.NumXDataTiles * Header.NumXDataTiles] <optimize=true>;
+				break;
+
+			case cXSD_FFFF:
+				XSD_FFFF UnknownFFFF;
+				break;
+
+			case cXSD_XSDHeader:
+				// we've already handled this at the start
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_XSD XSD;

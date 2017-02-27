@@ -1,0 +1,96 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: XTH.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse HaloWars XTH files.
+//  Category: HaloWars
+// File Mask: *.xth
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum
+{
+	cXTH_Version                 = 0x0001,
+
+	cXTH_XTHHeader               = 0x1111,
+	cXTH_TerrainHeightfield      = 0x2222,
+	cXTH_TerrainHeightfieldAlpha = 0x3333,
+};
+
+struct XTH_TerrainHeightfield
+{
+	struct D3DFMT_G16R16_Texel
+	{
+		ushort G; // Hi
+		ushort R; // Lo
+	};
+	uint Width, Height;
+	float WorldMinY, WorldMaxY, WorldRangeY;
+
+	AABB Bounds;
+
+	XMMATRIX NormZToWorld;
+	XMMATRIX WorldToNormZ;
+
+	int NumTexels;
+	int TexelsMemSize;
+	if (TexelsMemSize > 0)
+		D3DFMT_G16R16_Texel Texels[ NumTexels ] <optimize=true>;
+};
+
+// Won't appear in maps where W<256 or H<256
+struct XTH_TerrainHeightfieldAlpha
+{
+	typedef uint64 D3DFMT_LIN_DXT3A_1111;
+
+	int Width, Height;
+
+	int TexelsMemSize;
+	if (TexelsMemSize > 0)
+	{
+		local int numTexels = TexelsMemSize / sizeof(D3DFMT_LIN_DXT3A_1111);
+		D3DFMT_LIN_DXT3A_1111 Texels[ numTexels ] <optimize=true>;
+	}
+};
+
+struct ECF_XTH
+{
+	if (SeekToChunkById(FileStream, cXTH_XTHHeader) < 0)
+		return;
+	int Version;
+	if (Version != cXTH_Version)
+		return;
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cXTH_TerrainHeightfield:
+				XTH_TerrainHeightfield Heightfield;
+				break;
+			case cXTH_TerrainHeightfieldAlpha:
+				XTH_TerrainHeightfieldAlpha HeightfieldAlpha;
+				break;
+
+			case cXTH_XTHHeader:
+				// we've already handled this at the start
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_XTH XTH;

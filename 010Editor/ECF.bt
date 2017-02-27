@@ -1,0 +1,178 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: ECF.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse Any HaloWars ECF files.
+//  Category: HaloWars
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#include "HaloWarsUtils.bt"
+
+struct ECFHeader
+{
+	DWORD HeaderSignature		<format=hex>;
+	DWORD HeaderSize;
+	DWORD HeaderAdler32			<format=hex>;
+
+	DWORD FileSize;
+
+	WORD NumChunks;
+	WORD Flags;
+
+	DWORD ID					<format=hex>;
+
+	WORD ChunkExtraDataSize;
+	WORD PAD0;
+
+	DWORD PAD1;
+};
+
+typedef struct (WORD extra_data_size)
+{
+	QWORD ID					<format=hex>;
+	DWORD Offset				<format=hex>;
+	DWORD Size;
+	DWORD Adler32				<format=hex>;
+
+	BYTE Flags;
+	BYTE AlignmentLog2;
+
+	WORD ResourceFlags;
+
+	if (extra_data_size)
+		BYTE ExtraData[extra_data_size];
+} ECFChunkHeader <name=ECFChunkHeaderToString>;
+string ECFChunkHeaderToString(ECFChunkHeader& Header)
+{
+	local string Name;
+	SPrintf(Name, "%016X", Header.ID);
+	return Name;
+}
+
+typedef struct (ECFChunkHeader& header)
+{
+	local string Name;
+	SPrintf(Name, "%016X", header.ID);
+
+	BYTE Data[ header.Size ];
+} ECFChunkData <read=ECFChunkDataRead>;
+string ECFChunkDataRead(ECFChunkData& Data)
+{
+	return Data.Name;
+}
+
+typedef struct (DWORD id, DWORD size)
+{
+	local string Name;
+	SPrintf(Name, "%016X", id);
+
+	BYTE Data[ size ];
+} ECFChunkDataLoose <read=ECFChunkDataLooseRead>;
+string ECFChunkDataLooseRead(ECFChunkDataLoose& Data)
+{
+	return Data.Name;
+}
+
+struct ECFFileStream
+{
+	ECFHeader FileHeader;
+
+	local DWORD FileHeaderExtraDataSize = FileHeader.HeaderSize - sizeof(FileHeader);
+	if (FileHeaderExtraDataSize > 0)
+		BYTE FileHeaderExtraData[ FileHeader.HeaderSize - sizeof(FileHeader) ];
+
+	ECFChunkHeader ChunkHeaders(FileHeader.ChunkExtraDataSize) [ FileHeader.NumChunks ] <optimize=true>;
+};
+
+int64 SeekToChunkById(ECFFileStream& fileStream, QWORD id)
+{
+	local DWORD index = 0;
+	for (index = 0; index < fileStream.FileHeader.NumChunks; index++)
+	{
+		if (fileStream.ChunkHeaders[index].ID != id)
+			continue;
+		if (fileStream.ChunkHeaders[index].Size == 0)
+			return -2;
+
+		FSeek(fileStream.ChunkHeaders[index].Offset);
+		return fileStream.ChunkHeaders[index].Size;
+	}
+
+	return -1;
+}
+
+boolean ReadChunkBytes(ECFFileStream& fileStream, DWORD index)
+{
+	if (fileStream.ChunkHeaders[index].Size == 0)
+		return false;
+
+	FSeek(fileStream.ChunkHeaders[index].Offset);
+	ECFChunkData ChunkData( fileStream.ChunkHeaders[index] );
+	return true;
+}
+
+void ReadAllChunkBytes(ECFFileStream& fileStream)
+{
+	local DWORD index = 0;
+	for (index = 0; index < fileStream.FileHeader.NumChunks; index++)
+	{
+		ReadChunkBytes(fileStream, index);
+	}
+}
+
+local int ECFChunkIterator_Index = -1;
+local DWORD ECFChunkIterator_Offset = 0;
+local DWORD ECFChunkIterator_Size = 0;
+local QWORD ECFChunkIterator_ID = 0;
+
+enum ECFChunkIteratorNextResult
+{
+	kECFChunkIteratorNextSuccess,
+	kECFChunkIteratorNextEndOfList,
+	kECFChunkIteratorNextNoData,
+};
+void ECFChunkIteratorNew()
+{
+	ECFChunkIterator_Index = -1;
+	ECFChunkIterator_Size = 0;
+	ECFChunkIterator_ID = 0;
+}
+ECFChunkIteratorNextResult ECFChunkIteratorNext(ECFFileStream& fileStream)
+{
+	local int index = ++ECFChunkIterator_Index;
+	ECFChunkIterator_Offset = 0;
+	ECFChunkIterator_Size = 0;
+	ECFChunkIterator_ID = 0;
+	if (index >= (int)fileStream.FileHeader.NumChunks)
+		return kECFChunkIteratorNextEndOfList;
+
+	ECFChunkIterator_Offset = fileStream.ChunkHeaders[index].Offset;
+	ECFChunkIterator_Size = fileStream.ChunkHeaders[index].Size;
+	ECFChunkIterator_ID = fileStream.ChunkHeaders[index].ID;
+
+	if (ECFChunkIterator_Size == 0)
+		return kECFChunkIteratorNextNoData;
+
+	FSeek(ECFChunkIterator_Offset);
+	return kECFChunkIteratorNextSuccess;
+}
+
+void ECFChunkIteratorReadCurrentChunkData()
+{
+	if (ECFChunkIterator_Size == 0)
+		return;
+
+	ECFChunkDataLoose ChunkData(ECFChunkIterator_ID, ECFChunkIterator_Size);
+}
+
+BigEndian();
+ECFFileStream FileStream;
+
+#ifndef WELL_KNOWN_ECF
+ReadAllChunkBytes(FileStream);
+#endif
