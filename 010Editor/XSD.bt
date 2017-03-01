@@ -69,10 +69,16 @@ struct XSD_FFFF
 struct ECF_XSD
 {
 	if (SeekToChunkById(FileStream, cXSD_XSDHeader) < 0)
+	{
+		ReadAllChunkBytes(FileStream);
 		return;
+	}
 	XSD_XSDHeader Header;
 	if (Header.Version != cXSD_Version)
+	{
+		ReadAllChunkBytes(FileStream);
 		return;
+	}
 
 	ECFChunkIteratorNew();
 	local ECFChunkIteratorNextResult iterNextResult;

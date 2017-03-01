@@ -253,10 +253,16 @@ struct XTT_CCCC
 struct ECF_XTH_HW2
 {
 	if (SeekToChunkById(FileStream, cXTT_XTTHeader) < 0)
+	{
+		ReadAllChunkBytes(FileStream);
 		return;
+	}
 	XTT_XTTHeader Header;
 	if (Header.Version != cXTT_Version)
+	{
+		ReadAllChunkBytes(FileStream);
 		return;
+	}
 
 	ECFChunkIteratorNew();
 	local ECFChunkIteratorNextResult iterNextResult;

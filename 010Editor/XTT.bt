@@ -160,10 +160,16 @@ struct XTT_FoliageQNChunk
 struct ECF_XTH
 {
 	if (SeekToChunkById(FileStream, cXTT_XTTHeader) < 0)
+	{
+		ReadAllChunkBytes(FileStream);
 		return;
+	}
 	XTT_XTTHeader Header;
 	if (Header.Version != cXTT_Version)
+	{
+		ReadAllChunkBytes(FileStream);
 		return;
+	}
 
 	if (Header.NumActiveTextures > 0)
 		XTT_TerrainActiveTextureInfo ActiveTextures[ Header.NumActiveTextures ] <optimize=true>;

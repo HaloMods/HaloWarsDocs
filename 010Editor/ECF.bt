@@ -13,9 +13,17 @@
 
 #include "HaloWarsUtils.bt"
 
+enum
+{
+	cECFHeaderSignature = 0xDABA7737,
+};
+
 struct ECFHeader
 {
 	DWORD HeaderSignature		<format=hex>;
+	Assert(HeaderSignature==cECFHeaderSignature,
+		"This is not an ECF based file");
+
 	DWORD HeaderSize;
 	DWORD HeaderAdler32			<format=hex>;
 
@@ -45,7 +53,7 @@ typedef struct (WORD extra_data_size)
 	WORD ResourceFlags;
 
 	if (extra_data_size)
-		BYTE ExtraData[extra_data_size];
+		BYTE ExtraData[extra_data_size] <optimize=true>;
 } ECFChunkHeader <name=ECFChunkHeaderToString>;
 string ECFChunkHeaderToString(ECFChunkHeader& Header)
 {
@@ -59,7 +67,7 @@ typedef struct (ECFChunkHeader& header)
 	local string Name;
 	SPrintf(Name, "%016X", header.ID);
 
-	BYTE Data[ header.Size ];
+	BYTE Data[ header.Size ] <optimize=true>;
 } ECFChunkData <read=ECFChunkDataRead>;
 string ECFChunkDataRead(ECFChunkData& Data)
 {
@@ -71,7 +79,7 @@ typedef struct (DWORD id, DWORD size)
 	local string Name;
 	SPrintf(Name, "%016X", id);
 
-	BYTE Data[ size ];
+	BYTE Data[ size ] <optimize=true>;
 } ECFChunkDataLoose <read=ECFChunkDataLooseRead>;
 string ECFChunkDataLooseRead(ECFChunkDataLoose& Data)
 {

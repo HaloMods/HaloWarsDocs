@@ -1,10 +1,10 @@
 //------------------------------------------------
 //--- 010 Editor v3.0 Binary Template
 //
-//      File: XTD.bt
+//      File: XTD_HW2.bt
 //    Author: kornman00
-//   Version: 1.0
-//   Purpose: Parse HaloWars XTD files.
+//   Version: 0.1
+//   Purpose: Parse HaloWars2 XTD files.
 //  Category: HaloWars
 // File Mask: *.xtd
 //
@@ -17,21 +17,26 @@
 
 enum
 {
-	cXTD_Version               = 0x000C,
+	cXTD_Version               = 0x000D,
 
 	cXTD_XTDHeader             = 0x1111,
 	cXTD_TerrainChunk          = 0x2222,
-	// 0x4444 unused
-	// 0x6666 unused
+
 	cXTD_AtlasChunk            = 0x8888,
-	cXTD_TessChunk             = 0xAAAA,
-	cXTD_LightingChunk         = 0xBBBB,
-	cXTD_AOChunk               = 0xCCCC, // D3DFMT_LIN_DXT5A
-	cXTD_AlphaChunk            = 0xDDDD, // D3DFMT_LIN_DXT5A
+
+	cXTD_TessChunk             = 0xAAAA, // deprecated in HW2, but I still see it in XTD data
+
+	cXTD_AlphaChunk            = 0xDDDD,
 };
 
 struct XTD_XTDHeader
 {
+	struct WorldBB
+	{
+		XMVECTOR Min;
+		XMVECTOR Max;
+	};
+
 	int Version;
 	if (Version != cXTD_Version)
 		return;
@@ -39,15 +44,16 @@ struct XTD_XTDHeader
 	int NumXVerts;
 	int NumXChunks;
 	float TileScale;
-	AABB World;
+	WorldBB World; // this probably isn't right
 };
 
 typedef struct
 {
 	int GridX, GridZ;
-	int MaxVStride;
 	AABB M;
-	UCHAR CanCastShadows;
+	float Unknown8;
+	XMVECTOR Unknown9;
+	XMVECTOR Unknown10;
 } XTD_TerrainChunk <name=XTD_TerrainChunkGetName>;
 string XTD_TerrainChunkGetName(XTD_TerrainChunk& chunk)
 {
@@ -56,14 +62,18 @@ string XTD_TerrainChunkGetName(XTD_TerrainChunk& chunk)
 	return name;
 }
 
-struct XTD_AtlasChunk(DWORD chunk_total_size)
+struct XTD_AtlasChunk(int numXVerts)
 {
-	XMVECTOR PosCompMin;
-	XMVECTOR PosCompRange;
+	// I think these may be individual streams of X, Y, and Z?
 
-	local DWORD MemSize = chunk_total_size - (sizeof(XMVECTOR) * 2);
-	if (MemSize > 0)
-		BYTE Mem[ MemSize ] <optimize=true>;
+	if (numXVerts > 0)
+		float Mem0[numXVerts*numXVerts] <optimize=true>;
+
+	if (numXVerts > 0)
+		float Mem1[numXVerts*numXVerts] <optimize=true>;
+
+	if (numXVerts > 0)
+		float Mem2[numXVerts*numXVerts] <optimize=true>;
 };
 
 struct XTD_TessChunk
@@ -111,21 +121,15 @@ struct ECF_XTH
 				XTD_TerrainChunk TerrainChunk;
 				break;
 			case cXTD_AtlasChunk:
-				XTD_AtlasChunk AtlasChunk(ECFChunkIterator_Size);
+				XTD_AtlasChunk AtlasChunk(Header.NumXVerts);
 				break;
-			case cXTD_TessChunk:
+			case cXTD_TessChunk: // this is deprecated in HW2, but I'm still seeing it in files
+				BigEndian();
 				XTD_TessChunk TessChunk;
-				break;
-			case cXTD_LightingChunk:
-				int LightingChunkMemSize;
-				if (LightingChunkMemSize > 0)
-					BYTE LightingChunk[ LightingChunkMemSize ] <optimize=true>;
-				break;
-			case cXTD_AOChunk:
-				BYTE AO[ ECFChunkIterator_Size ] <optimize=true>;
+				LittleEndian();
 				break;
 			case cXTD_AlphaChunk:
-				BYTE Alpha[ ECFChunkIterator_Size ] <optimize=true>;
+				BYTE Alpha[ Header.NumXVerts*Header.NumXVerts ] <optimize=true>;
 				break;
 
 			case cXTD_XTDHeader:
@@ -137,4 +141,5 @@ struct ECF_XTH
 		}
 	}
 };
+LittleEndian();
 ECF_XTH XTH;
