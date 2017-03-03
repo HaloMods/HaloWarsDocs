@@ -1,0 +1,99 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: pkg.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse Any HaloWars2 PKG files.
+//  Category: HaloWars
+// File Mask: *.pkg
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#include "HaloWarsUtils.bt"
+
+const string cPackageHeaderSignature = "capack";
+
+enum
+{
+	cPackageVersionNoAlignment = 1,
+	cPackageVersion = 2,
+	cMaxPackageEntryNameLength = 511,
+};
+
+struct CaPackageHeader
+{
+	char Signature[6];
+	Assert( 0==Memcmp(Signature, cPackageHeaderSignature, 6),
+		"Invalid Siganture");
+	uint64 Version;
+	Assert(Version <= cPackageVersion,
+		"Unknown package version");
+
+	int64 EntryCount;
+	Assert(EntryCount>0,
+		"Packages require at least one entry");
+};
+
+typedef struct 
+{
+	int64 NameLength;
+	Assert(NameLength<=cMaxPackageEntryNameLength,
+		"Invalid name length");
+	char Name[NameLength];
+	int64 Offset;
+	int64 Size;
+} CaPackageEntry <name=CaPackageEntryGetName>;
+string CaPackageEntryGetName(CaPackageEntry& entry)
+{
+	return entry.Name;
+}
+
+typedef struct (CaPackageEntry& entry)
+{
+	local string Name = entry.Name;
+
+	BYTE Bytes[ entry.Size ] <optimize=true>;
+} CaPackageEntryData <name=CaPackageEntryDataGetName>;
+string CaPackageEntryDataGetName(CaPackageEntryData& entry)
+{
+	return entry.Name;
+}
+
+int64 AlignedPosition(int64 cursorPos, int64 alignment)
+{
+	local int64 n = (cursorPos + alignment - 1) - (cursorPos + alignment - 1) % alignment;
+	return n;
+}
+
+struct CaPackageFileAllocationTable
+{
+	CaPackageHeader Header;
+	CaPackageEntry Entries[Header.EntryCount] <optimize=false>;
+
+	if (Header.Version > cPackageVersionNoAlignment)
+	{
+		int64 Alignment;
+		local int64 cursorPos = FTell();
+		cursorPos = AlignedPosition(cursorPos, Alignment);
+		FSeek(cursorPos);
+	}
+};
+
+LittleEndian();
+CaPackageFileAllocationTable FAT;
+
+struct CaPackageEntriesData
+{
+	local int64 entriesOffset = FTell();
+	local int64 x;
+	for (x = 0; x < FAT.Header.EntryCount; x++)
+	{
+		FSeek(entriesOffset + FAT.Entries[x].Offset);
+
+		CaPackageEntryData Data(FAT.Entries[x]);
+	}
+};
+CaPackageEntriesData Files;
