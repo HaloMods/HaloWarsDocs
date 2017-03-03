@@ -1,0 +1,49 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: UAX.bt
+//    Author: kornman00
+//   Version: 0.1
+//   Purpose: Parse HaloWars UAX files.
+//  Category: HaloWars
+// File Mask: *.UAX
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum
+{
+	cUAX_FileID        = 0xAAC93747,
+
+	cUAX_UaxChunk      = 0x00000700, // granny_file_info
+};
+
+struct ECF_UAX
+{
+	if (FileStream.FileHeader.ID != cUAX_FileID)
+	{
+		ReadAllChunkBytes(FileStream);
+		return;
+	}
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_UAX UAX;

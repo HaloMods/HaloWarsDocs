@@ -1,0 +1,95 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: UGX.bt
+//    Author: kornman00
+//   Version: 0.1
+//   Purpose: Parse HaloWars UGX files.
+//  Category: HaloWars
+// File Mask: *.ugx
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum
+{
+	cUGX_FileID               = 0xAAC93746,
+
+	cUGX_CachedDataChunk      = 0x00000700,
+	cUGX_IndexBufferChunk     = 0x00000701,
+	cUGX_VertexBufferChunk    = 0x00000702,
+	cUGX_GrxChunk             = 0x00000703, // granny_file_info
+	cUGX_MaterialChunk        = 0x00000704,
+	cUGX_TreeChunk            = 0x00000705,
+
+	cUGX_CachedDataSignatureHW1_BE  = 0xC2340004,
+	cUGX_CachedDataSignatureHW1_LE  = 0x040034C2,
+	cUGX_CachedDataSignatureHW2     = 0x060034C2, // 0xC2340006
+};
+
+struct UGX_VertexBuffer
+{
+	// TODO: figure out the format of this buffer via cUGX_CachedDataChunk
+	local int memSize = ECFChunkIterator_Size / sizeof(float);
+
+	float Buffer[memSize]  <optimize=true>;
+};
+
+struct UGX_IndexBuffer
+{
+	// TODO: figure out the format of this buffer via cUGX_CachedDataChunk
+};
+
+struct ECF_UGX
+{
+	if (FileStream.FileHeader.ID != cUGX_FileID)
+	{
+		ReadAllChunkBytes(FileStream);
+		return;
+	}
+	if (SeekToChunkById(FileStream, cUGX_CachedDataChunk) < 0)
+	{
+		ReadAllChunkBytes(FileStream);
+		return;
+	}
+
+	// TODO: need to look up and unpack CachedData first, before all other chunks
+	uint CachedDataSignatureHack <format=hex>;
+	switch (CachedDataSignatureHack)
+	{
+		case cUGX_CachedDataSignatureHW1_BE:
+			break; // do nothing, we're already in BE
+
+		case cUGX_CachedDataSignatureHW1_LE:
+		case cUGX_CachedDataSignatureHW2:
+			LittleEndian();
+			break;
+
+		default:
+			Assert(false,
+				"Unknown CachedDataSignature");
+	}
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cUGX_VertexBufferChunk:
+				UGX_VertexBuffer VertexBuffer;
+				break;
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_UGX UGX;
