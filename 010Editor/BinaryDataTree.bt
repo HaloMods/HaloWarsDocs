@@ -1,0 +1,212 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: BinaryDataTree.bt
+//    Author: kornman00
+//   Version: 0.5
+//   Purpose: Misc utils for parsing HaloWars binary files.
+//  Category: HaloWars
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#include "HaloWarsUtils.bt"
+
+local uint64 kBinaryDataTreeNameDataOffset = UINT64_MAX;
+local uint64 kBinaryDataTreeValueDataOffset = UINT64_MAX;
+
+enum eBinaryDataTreeSectionID
+{
+	cNodeSectionIndex,
+	cNameValueSectionIndex,
+	cNameDataSectionIndex,
+	cValueDataSectionIndex,
+	cNumberOfBasicSections,
+};
+
+enum eBinaryDataTreeDataTypeClass
+{
+	cTypeNull,
+	cTypeBool,
+	cTypeInt,
+	cTypeFloat,
+	cTypeString,
+
+	cNumberOfTypeClasses,
+};
+string TypeClassToString(uint klass)
+{
+	switch (klass)
+	{
+		case cTypeNull:
+			return "NULL";
+		case cTypeBool:
+			return "bool";
+		case cTypeInt:
+			return "int";
+		case cTypeFloat:
+			return "float";
+		case cTypeString:
+			return "string";
+		default:
+			Assert(false, "Unknown type");
+			break;
+	}
+}
+
+struct BBinaryDataTreeHeader
+{
+	const byte kLittleEndianSignature = 0x3E;
+	const byte kBigEndianSignature = 0xE3;
+	const uint kExpectedSize = 1+1+1+1+4+4+(4*cNumberOfBasicSections);
+
+	byte Signature;
+	if (Signature == kLittleEndianSignature)
+		LittleEndian();
+	else if (Signature == kBigEndianSignature)
+		BigEndian();
+	else
+		Assert(false, "Unknown signature");
+
+	byte HeaderDWORDs;
+	Assert(Header.HeaderDWORDs == (kExpectedSize / sizeof(DWORD)),
+		"Unknown header layout");
+	// CRC16 of the header, with this value set to 0, truncated to a byte
+	byte HeaderCRC8;
+	byte NumUserSections;
+
+	uint32 DataCRC32;
+	uint32 DataSize;
+	uint32 BaseSectionSizes[cNumberOfBasicSections] <optimize=true>;
+};
+
+typedef struct 
+{
+	uint32 ID;
+	uint32 Size;
+	uint32 Offset;
+} BBinaryDataTreeSection <name=BBinaryDataTreeSectionToString>;
+string BBinaryDataTreeSectionToString(BBinaryDataTreeSection& section)
+{
+	local string name;
+	SPrintf(name, "%08X", section.ID);
+	return name;
+}
+
+struct BBinaryDataTreeNode
+{
+	uint16 ParentIndex; // UINT16_MAX == root
+	uint16 ChildNodeIndex;
+	uint16 NameValueOffset;
+	byte NumberOfNameValues;
+	byte NumberOfChildNodes;
+};
+
+enum eBinaryDataTreeNameValueFlags
+{
+	cTypeIsUnsignedMask        = 1U,
+	cDirectEncodingMask        = 2U,
+
+	cTypeShift                 = 2U,
+	cTypeBits                  = 3U,
+	cTypeMask                  = ((1U << cTypeBits) - 1U),
+
+	cTypeSizeInBytesLog2Shift  = 5U,
+	cTypeSizeInBytesLog2Bits   = 3U,
+	cTypeSizeInBytesLog2Mask   = ((1U << cTypeSizeInBytesLog2Bits) - 1U),
+
+	cLastNameValueShift        = 8,
+
+	cSizeShift                 = 9,
+	cSizeBits                  = 7,
+	cSizeMask                  = ((1U << cSizeBits) - 1U)
+};
+typedef struct 
+{
+	uint32 Value;
+	uint16 NameOffset;
+	uint16 Flags;
+} BBinaryDataTreeNameValue <read=BBinaryDataTreeNameValueToString>;
+string BBinaryDataTreeNameValueToString(BBinaryDataTreeNameValue& v)
+{
+	local string name = "UNKNOWN";
+	if (kBinaryDataTreeNameDataOffset != UINT64_MAX)
+	{
+		name = ReadString(kBinaryDataTreeNameDataOffset + v.NameOffset);
+	}
+
+	local boolean IsUnsigned = v.Flags & cTypeIsUnsignedMask;
+	local boolean DirectEncoding = v.Flags & cDirectEncodingMask;
+	local boolean IsLastName = ((v.Flags >> cLastNameValueShift) & 1) != 0;
+	local uint16 TypeClass = (v.Flags >> cTypeShift) & cTypeMask;
+	local uint16 SizeInBytes = (v.Flags >> cTypeSizeInBytesLog2Shift) & cTypeSizeInBytesLog2Mask;
+	local uint16 TotalDataSize = (v.Flags >> cSizeShift) & cSizeMask;
+
+	if (TypeClass == cTypeNull)
+		return name;
+
+	local string s;
+	SPrintf(s,
+		"%s  %s  %s"
+		, TypeClassToString(TypeClass)
+		, name
+		, IsLastName ? "LAST" : ""
+		);
+	return s;
+}
+
+struct BBinaryDataTree
+{
+	BBinaryDataTreeHeader Header;
+
+	if (Header.NumUserSections > 0)
+	{
+		BBinaryDataTreeSection UserSections[Header.NumUserSections] <optimize=true>;
+	}
+
+	local uint32 NodesCount = Header.BaseSectionSizes[cNodeSectionIndex] / sizeof(BBinaryDataTreeNode);
+	local uint64 NodesOffset = FTell();
+	FSeek(NodesOffset + Header.BaseSectionSizes[cNodeSectionIndex]);
+
+	local uint32 NameValuesCount = Header.BaseSectionSizes[cNameValueSectionIndex] / sizeof(BBinaryDataTreeNameValue);
+	local uint64 NameValuesOffset = FTell();
+	FSeek(NameValuesOffset + Header.BaseSectionSizes[cNameValueSectionIndex]);
+
+	local uint32 NameDataSize = Header.BaseSectionSizes[cNameDataSectionIndex];
+	local uint64 NameDataOffset = FTell();
+	kBinaryDataTreeNameDataOffset = NameDataOffset;
+	FSeek(NameDataOffset + Header.BaseSectionSizes[cNameDataSectionIndex]);
+
+	local uint32 ValueDataSize = Header.BaseSectionSizes[cValueDataSectionIndex];
+	local uint64 ValueDataOffset = 0;
+	kBinaryDataTreeValueDataOffset = UINT64_MAX;
+	if (ValueDataSize > 0)
+	{
+		ValueDataOffset = AlignUpValue(FTell(), 16);
+		kBinaryDataTreeValueDataOffset = ValueDataOffset;
+	}
+
+	//local uint64 original_pos = FTell();
+	if (NodesCount > 0)
+	{
+		FSeek(NodesOffset);
+		BBinaryDataTreeNode Nodes[NodesCount] <optimize=true>;
+	}
+	if (NameValuesCount > 0)
+	{
+		FSeek(NameValuesOffset);
+		BBinaryDataTreeNameValue NameValues[NameValuesCount] <optimize=true>;
+	}
+	if (NameDataSize > 0)
+	{
+		FSeek(NameDataOffset);
+		byte NameData[NameDataSize] <optimize=true>;
+	}
+	if (ValueDataSize > 0)
+	{
+		FSeek(ValueDataOffset);
+		byte ValueData[ValueDataSize] <optimize=true>;
+	}
+	//FSeek(original_pos);
+};

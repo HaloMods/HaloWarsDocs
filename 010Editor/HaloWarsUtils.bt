@@ -10,10 +10,87 @@
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
 //------------------------------------------------
+#ifndef HALO_WARS_UTILS_BT
+#define HALO_WARS_UTILS_BT
+
+const uint UINT_MAX = 0xFFFFFFFF;
+const uint UINT64_MAX = 0xFFFFFFFFFFFFFFFF;
+
+uint64 AlignUpValue(uint64 v, uint64 alignment)
+{
+	v = (v + alignment - 1) & (~(alignment - 1));
+	return v;
+}
+uint64 BytesToAlignUpValue(uint64 v, uint64 alignment)
+{
+	return AlignUpValue(v, alignment) - v;
+}
 
 typedef int boolean;
+typedef byte bool;
 
-typedef USHORT HALF;
+string IntToFloat(uint v)
+{
+	local string result;
+	SPrintf(result, "%f", v);
+	return result;
+}
+typedef USHORT HALF <read=HALFRead>;
+string HALFRead(HALF h)
+{
+	local const boolean kNoAbnormalValues = true;
+
+	local uint sign = 0x80000000 & ((uint)h << 16);
+	local uint exp = (uint)(31 & (h >> 10));
+	local uint man = (uint)(1023 & h);
+
+	local uint v = sign;
+
+	if (exp == 0)
+	{
+		if (man == 0)
+		{
+			// +-0
+			return IntToFloat(v);
+		}
+		else
+		{
+			// normalize denormal
+			while (0 == (man & 0x400))
+			{
+				exp--;
+				man <<= 1;
+			}
+
+			exp++;
+			man &= (uint)(~0x400);
+		}
+	}
+	else if (exp == 31)
+	{
+		if (kNoAbnormalValues == true)
+			return "0";
+
+		if (man != 0)
+		{
+			// NaN
+			v |= man << 13;
+			v |= 0x7F800000;
+			return IntToFloat(v);
+		}
+		else
+		{
+			// +-inf
+			v |= 0x7F800000;
+			return IntToFloat(v);
+		}
+	}
+
+	v |= (exp + 112) << 23;
+	v |= man << 13;
+
+	return IntToFloat(v);
+}
 
 typedef struct
 {
@@ -22,7 +99,7 @@ typedef struct
 string Vector3FRead(Vector3F& v)
 {
 	string s;
-	SPrintf(s, "(%f, %f, %f)", v.x, v.y, v.z);
+	SPrintf(s, "(%g, %g, %g)", v.x, v.y, v.z);
 	return s;
 }
 void Vector3FWrite(Vector3F& v, string s)
@@ -37,7 +114,7 @@ typedef struct
 string XMVECTORRead(XMVECTOR& v)
 {
 	string s;
-	SPrintf(s, "(%f, %f, %f, %f)", v.x, v.y, v.z, v.w);
+	SPrintf(s, "(%g, %g, %g, %g)", v.x, v.y, v.z, v.w);
 	return s;
 }
 void XMVECTORWrite(XMVECTOR& v, string s)
@@ -50,7 +127,109 @@ struct AABB
 	Vector3F Min,Max;
 };
 
-struct XMMATRIX
+typedef struct 
 {
 	float M[16];
-};
+} XMMATRIX <read=XMMATRIXRead>;
+string XMMATRIXRead(XMMATRIX& v)
+{
+	string s;
+	SPrintf(s, 
+		"(%g, %g, %g, %g)\n" +
+		"(%g, %g, %g, %g)\n" +
+		"(%g, %g, %g, %g)\n" +
+		"(%g, %g, %g, %g)"
+		, v.M[0], v.M[1], v.M[2], v.M[3]
+		, v.M[4], v.M[5], v.M[6], v.M[7]
+		, v.M[8], v.M[9], v.M[10], v.M[11]
+		, v.M[12], v.M[13], v.M[14], v.M[15]);
+	return s;
+}
+
+
+local uint64 kPackedDataBaseOffset = 0;
+
+typedef struct (boolean _64bit)
+{
+	if (_64bit)
+	{
+		uint Length;
+		uint : 32;
+		uint64 Offset	<format=hex>;
+	}
+	else
+	{
+		uint Length;
+		uint Offset		<format=hex>;
+	}
+} PackedArrayHeader <read=PackedArrayHeaderToString>;
+string PackedArrayHeaderToString(PackedArrayHeader& header)
+{
+	local string s = "EMPTY";
+	if (header.Length > 0)
+	{
+		SPrintf(s, "%08Xh  %08Xh", header.Length, header.Offset);
+	}
+	return s;
+}
+
+boolean SeekToPackedArray(PackedArrayHeader& header, uint64& original_pos)
+{
+	if (header.Length > 0)
+	{
+		original_pos = FTell();
+		FSeek(kPackedDataBaseOffset + header.Offset);
+		return true;
+	}
+
+	original_pos = UINT64_MAX;
+	return false;
+}
+boolean UnSeekToPackedArray(uint64 original_pos)
+{
+	if (original_pos != UINT64_MAX)
+	{
+		FSeek(original_pos);
+		original_pos = UINT64_MAX;
+		return true;
+	}
+
+	return false;
+}
+
+typedef struct (boolean _64bit)
+{
+	// UINT_MAX == nullptr
+	if (_64bit)
+	{
+		uint64 Offset	<format=hex>;
+	}
+	else
+	{
+		uint Offset		<format=hex>;
+	}
+} PackedString <read=PackedStringToString>;
+string PackedStringToString(PackedString& header)
+{
+	local string s = "EMPTY";
+	if (header.Offset != UINT_MAX)
+	{
+		local string string_data = ReadString(kPackedDataBaseOffset + header.Offset);
+		SPrintf(s, "%08Xh %s", header.Offset, string_data);
+	}
+	return s;
+}
+
+boolean SeekToPackedString(PackedString& header)
+{
+	if (header.Offset != UINT_MAX)
+	{
+		FSeek(kPackedDataBaseOffset + header.Offset);
+		return true;
+	}
+
+	return false;
+}
+
+
+#endif
