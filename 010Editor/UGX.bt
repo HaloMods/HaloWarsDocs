@@ -3,7 +3,7 @@
 //
 //      File: UGX.bt
 //    Author: kornman00
-//   Version: 0.2
+//   Version: 0.3
 //   Purpose: Parse HaloWars UGX files.
 //  Category: HaloWars
 // File Mask: *.ugx
@@ -37,6 +37,7 @@ enum
 
 struct UnivertPacker
 {
+	// TODO was this changed slightly for HWDE?
 	enum VertexElementType
 	{
 		eIGNORE,
@@ -197,13 +198,14 @@ struct UGX_CachedDataSectionV6 // 0x48
 	// I think this may be 8-byte alignment padding
 	uint32 I_THINK_THIS_IS_PADDING	<format=hex>;
 
-	// PackedArrayHeader?
-	PackedArrayHeader UNKNOWNHeader	(IS_64_BIT);
+	PackedArrayHeader LocalToGlobalBoneRemapArray	(IS_64_BIT) <hidden=true>;
 
-	if (UNKNOWNHeader.Length != 0)
+	local uint64 original_pos;
+	if (SeekToPackedArray(LocalToGlobalBoneRemapArray, original_pos))
 	{
-		PrintF("UNKNOWNHeader with %d values near %016Xh",
-			UNKNOWNHeader.Length, FTell());
+		int LocalToGlobalBoneRemap[LocalToGlobalBoneRemapArray.Length] <optimize=true>;
+
+		UnSeekToPackedArray(original_pos);
 	}
 };
 
@@ -328,7 +330,9 @@ struct UGX_VertexBuffer
 
 struct UGX_IndexBuffer
 {
-	// TODO: figure out the format of this buffer via cUGX_CachedDataChunk
+	local int memSize = ECFChunkIterator_Size / sizeof(int16);
+
+	int16 Buffer[memSize]  <optimize=true>;
 };
 
 struct ECF_UGX
@@ -385,6 +389,10 @@ struct ECF_UGX
 		switch (ECFChunkIterator_ID)
 		{
 			case cUGX_CachedDataChunk:
+				break;
+
+			case cUGX_IndexBufferChunk:
+				UGX_IndexBuffer IndexBuffer;
 				break;
 
 			case cUGX_VertexBufferChunk:
