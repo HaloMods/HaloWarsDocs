@@ -1,0 +1,18 @@
+#include "Granny.bt"
+
+LittleEndian();
+grn_file_magic_value MagicValue;
+grn_file_header FileHeader(MagicValue);
+grn_section SectionArray[FileHeader.SectionArrayCount];
+
+local int x;
+for (x = 0; x < FileHeader.SectionArrayCount; x++)
+{
+	grn_section_data SectionData(SectionArray[x]);
+	/*if (SectionArray[x].PointerFixupArrayCount > 0 ||
+		SectionArray[x].MixedMarshallingFixupArrayCount > 0 ||
+		SectionArray[x].DataSize > 0)
+	{
+		grn_section_data SectionData(SectionArray[x]);
+	}*/
+}

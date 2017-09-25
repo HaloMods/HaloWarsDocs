@@ -3,7 +3,7 @@
 //
 //      File: UGX.bt
 //    Author: kornman00
-//   Version: 0.3
+//   Version: 0.4
 //   Purpose: Parse HaloWars UGX files.
 //  Category: HaloWars
 // File Mask: *.ugx
@@ -13,6 +13,7 @@
 //------------------------------------------------
 
 #include "BinaryDataTree.bt"
+#include "Granny.bt"
 
 #define WELL_KNOWN_ECF
 #include "ECF.bt"
@@ -33,6 +34,8 @@ enum
 	cUGX_CachedDataSignatureHW1_BE  = 0xC2340004,
 	cUGX_CachedDataSignatureHW1_LE  = 0x040034C2,
 	cUGX_CachedDataSignatureHW2     = 0x060034C2, // 0xC2340006
+
+	BAABBTreeVersion = 33440002,
 };
 
 struct UnivertPacker
@@ -41,23 +44,25 @@ struct UnivertPacker
 	enum VertexElementType
 	{
 		eIGNORE,
-		eFLOAT1,
-		eFLOAT2,
-		eFLOAT3,
-		eFLOAT4,
-		eD3DCOLOR,
-		eUBYTE4,
-		eSHORT2,
-		eSHORT4,
-		eUBYTE4N,
-		eSHORT2N,
-		eSHORT4N,
-		eUSHORT2N,
-		eUSHORT4N,
-		eUDEC3,
-		eDEC3N,
-		eHALFFLOAT2,
-		eHALFFLOAT4,
+		eFLOAT1,		// 4 DXGI_FORMAT_R32_FLOAT
+		eFLOAT2,		// 8 DXGI_FORMAT_R32G32_FLOAT
+		eFLOAT3,		// 12 DXGI_FORMAT_R32G32B32_FLOAT
+		eFLOAT4,		// 16 DXGI_FORMAT_R32G32B32A32_FLOAT
+		eD3DCOLOR,		// 4 DXGI_FORMAT_B8G8R8A8_UNORM
+		eUBYTE4,		// 4 DXGI_FORMAT_R8G8B8A8_UINT
+		eSHORT2,		// 4 DXGI_FORMAT_R16G16_SINT
+		eSHORT4,		// 8 DXGI_FORMAT_R16G16B16A16_SINT
+		eUBYTE4N,		// 4 DXGI_FORMAT_R8G8B8A8_UNORM
+		eSHORT2N,		// 4 DXGI_FORMAT_R16G16_SNORM
+		eSHORT4N,		// 8 DXGI_FORMAT_R16G16B16A16_SNORM
+		eUSHORT2N,		// 4 DXGI_FORMAT_R16G16_UNORM
+		eUSHORT4N,		// 8 DXGI_FORMAT_R16G16B16A16_UNORM
+		eUDEC3,			// 4 DXGI_FORMAT_UNKNOWN
+		eDEC3N,			// 4 DXGI_FORMAT_UNKNOWN
+		//4 DXGI_FORMAT_UNKNOWN
+		eHALFFLOAT2,	// 4 DXGI_FORMAT_R16G16_FLOAT
+		eHALFFLOAT4,	// 8 DXGI_FORMAT_R16G16B16A16_FLOAT
+		//4 DXGI_FORMAT_R8G8B8A8_SNORM
 
 		eHALFFLOAT1,
 		eUDEC3N,
@@ -83,7 +88,7 @@ struct UGX_CachedDataHeaderV4
 	int RigidBoneIndex;
 	Vector3F BoundingSphereCenter;
 	float BoundingSphereRadius;
-	Vector3F mBounds[2];
+	Vector3F Bounds[2];
 	int16 MaxInstances;
 	int16 InstanceIndexMultiplier;
 	int16 LargeGeomBoneIndex; // INT16_MAX == none
@@ -162,7 +167,7 @@ struct UGX_CachedDataHeaderV6
 	int RigidBoneIndex;
 	Vector3F BoundingSphereCenter;
 	float BoundingSphereRadius;
-	Vector3F mBounds[2];
+	Vector3F Bounds[2];
 	int16 MaxInstances;
 	int16 InstanceIndexMultiplier;
 	int16 LargeGeomBoneIndex;
@@ -335,6 +340,12 @@ struct UGX_IndexBuffer
 	int16 Buffer[memSize]  <optimize=true>;
 };
 
+struct BAABBTree
+{
+	uint32 Header;
+	//uint32 Footer;
+};
+
 struct ECF_UGX
 {
 	if (FileStream.FileHeader.ID != cUGX_FileID)
@@ -397,6 +408,12 @@ struct ECF_UGX
 
 			case cUGX_VertexBufferChunk:
 				UGX_VertexBuffer VertexBuffer;
+				break;
+
+			case cUGX_GrxChunk:
+				GRN_IS_64_BIT = IS_64_BIT;
+				kGrannyDataBaseOffset = FTell();
+				granny_file_info file_info;
 				break;
 
 			case cUGX_MaterialChunk:

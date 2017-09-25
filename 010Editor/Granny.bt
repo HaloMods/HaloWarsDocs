@@ -1,0 +1,864 @@
+#include "HaloWarsUtils.bt"
+
+enum eGRNFileMV
+{
+	_GRNFileMV_Old,
+	_GRNFileMV_32Bit_LittleEndian,
+	_GRNFileMV_32Bit_BigEndian,
+	_GRNFileMV_64Bit_LittleEndian,
+	_eGRNFileMV_64Bit_BigEndian,
+};
+
+// up to version 6
+enum eGRNFileMV_Old
+{
+	GRNFileMV_Old0 = 0xCAB067B8,
+	GRNFileMV_Old1 = 0x0FB16DF8,
+	GRNFileMV_Old2 = 0x7E8C7284,
+	GRNFileMV_Old3 = 0x1E00195E,
+};
+
+enum eGRNFileMV_32Bit_LittleEndian
+{
+	GRNFileMV_32Bit_LittleEndian0 = 0xC06CDE29,
+	GRNFileMV_32Bit_LittleEndian1 = 0x2B53A4BA,
+	GRNFileMV_32Bit_LittleEndian2 = 0xA5B7F525,
+	GRNFileMV_32Bit_LittleEndian3 = 0xEEE266F6,
+};
+
+enum eGRNFileMV_32Bit_BigEndian
+{
+	GRNFileMV_32Bit_BigEndian0 = 0xB595110E,
+	GRNFileMV_32Bit_BigEndian1 = 0x4BB5A56A,
+	GRNFileMV_32Bit_BigEndian2 = 0x502828EB,
+	GRNFileMV_32Bit_BigEndian3 = 0x04B37825,
+};
+
+enum eGRNFileMV_64Bit_LittleEndian
+{
+	GRNFileMV_64Bit_LittleEndian0 = 0x5E499BE5,
+	GRNFileMV_64Bit_LittleEndian1 = 0x141F636F,
+	GRNFileMV_64Bit_LittleEndian2 = 0xA9EB131E,
+	GRNFileMV_64Bit_LittleEndian3 = 0xC4EDBE90,
+};
+
+enum eGRNFileMV_64Bit_BigEndian
+{
+	GRNFileMV_64Bit_BigEndian0 = 0xE3D49531,
+	GRNFileMV_64Bit_BigEndian1 = 0x624FDC20,
+	GRNFileMV_64Bit_BigEndian2 = 0x3AD036CC,
+	GRNFileMV_64Bit_BigEndian3 = 0x89FF82B1,
+};
+
+enum grn_standard_section_index
+{
+	StandardMainSection = 0,
+
+	StandardRigidVertexSection = 1,
+	StandardRigidIndexSection = 2,
+
+	StandardDeformableVertexSection = 3,
+	StandardDeformableIndexSection = 4,
+
+	StandardTextureSection = 5,
+
+	StandardDiscardableSection = 6,
+	StandardUnloadedSection = 7,
+
+	StandardSectionCount
+};
+
+enum grn_type_tag
+{
+	FirstGRNUserTag = 0,
+	LastGRNUserTag = 0x7FFFFFFF,
+
+	FirstGRNStandardTag = 0x80000000,
+	LastGRNStandardTag = 0xFFFFFFFF,
+};
+
+enum
+{
+	CurrentGRNStandardTag = FirstGRNStandardTag + 38,
+	CurrentGRNFileVersion = 7,
+	GRNExtraTagCount = 4,
+};
+
+enum grn_compression_type
+{
+	NoCompression,
+	Oodle0Compression,
+	Oodle1Compression,
+	// BitKnit  2.10.0.0 release 2015/07/30
+	BitKnitCompression,
+	// BitKnit2 2.11.0.0 release 2015/11/03
+	BitKnit2Compression,
+};
+
+struct grn_file_magic_value
+{
+	DWORD MagicValue[4];
+	DWORD HeaderSize;
+	DWORD HeaderFormat;
+	DWORD Reserved[2];
+};
+
+struct grn_reference
+{
+	DWORD SectionIndex;
+	DWORD Offset <format=hex>;
+};
+
+typedef struct (grn_file_magic_value& mv)
+{
+	// Version 0 fields:
+	DWORD Version;
+
+	DWORD TotalSize;
+	DWORD CRC <format=hex>;
+
+	DWORD SectionArrayOffset <format=hex>;
+	DWORD SectionArrayCount;
+
+	grn_reference RootObjectTypeDefinition;
+	grn_reference RootObject;
+
+	DWORD TypeTag <format=hex>;
+	DWORD ExtraTags[GRNExtraTagCount] <format=hex>;
+
+	if (Version >= 7)
+	{
+		DWORD StringDatabaseCRC;
+
+		DWORD ReservedUnused[3];
+	}
+} grn_file_header;
+
+struct grn_section
+{
+	DWORD Format;
+	DWORD DataOffset <format=hex>;
+	DWORD DataSize;
+	DWORD ExpandedDataSize;
+	DWORD InternalAlignment;
+
+	DWORD First16Bit;
+	DWORD First8Bit;
+
+	DWORD PointerFixupArrayOffset <format=hex>;
+	DWORD PointerFixupArrayCount;
+
+	DWORD MixedMarshallingFixupArrayOffset <format=hex>;
+	DWORD MixedMarshallingFixupArrayCount;
+};
+
+struct grn_pointer_fixup
+{
+	DWORD FromOffset <format=hex>;
+	grn_reference To;
+};
+
+struct grn_mixed_marshalling_fixup
+{
+	DWORD Count;
+	DWORD Offset <format=hex>;
+	grn_reference Type;
+};
+
+typedef struct (grn_section& sec)
+{
+	local int r, m;
+
+	if (sec.PointerFixupArrayCount > 0)
+	{
+		FSeek(sec.PointerFixupArrayOffset);
+		grn_pointer_fixup PointerFixupArray[sec.PointerFixupArrayCount] <optimize=true>;
+	}
+
+	if (sec.MixedMarshallingFixupArrayCount > 0)
+	{
+		FSeek(sec.MixedMarshallingFixupArrayOffset);
+		grn_mixed_marshalling_fixup MixedMarshallingFixupArray[sec.MixedMarshallingFixupArrayCount] <optimize=true>;
+	}
+
+	if (sec.DataSize > 0)
+	{
+		FSeek(sec.DataOffset);
+		BYTE Data[sec.DataSize] <bgcolor=cBlack,fgcolor=cWhite>;
+	}
+} grn_section_data;
+
+
+enum grn_member_type
+{
+	EndMember,
+
+	InlineMember,
+	ReferenceMember,
+	ReferenceToArrayMember,
+	ArrayOfReferencesMember,
+	VariantReferenceMember,
+	UnsupportedMemberType_Remove,
+	ReferenceToVariantArrayMember,
+
+	StringMember,
+	TransformMember,
+
+	Real32Member,
+
+	Int8Member,
+	UInt8Member,
+	BinormalInt8Member,
+	NormalUInt8Member,
+
+	Int16Member,
+	UInt16Member,
+	BinormalInt16Member,
+	NormalUInt16Member,
+
+	Int32Member,
+	UInt32Member,
+
+	Real16Member,
+
+	EmptyReferenceMember,
+
+	//Bool32Member = Int32Member,
+};
+
+local boolean GRN_IS_64_BIT = false;
+local uint64 kGrannyDataBaseOffset = 0;
+
+///////////////////////////////////////////////////////////
+// GrannyString
+	typedef struct 
+	{
+		if (GRN_IS_64_BIT)
+		{
+			uint64 Offset   <format=hex>;
+		}
+		else
+		{
+			uint Offset     <format=hex>;
+		}
+	} GrannyString <read=GrannyStringToString>;
+	string GrannyStringToString(GrannyString& ptr)
+	{
+		local string s = "EMPTY";
+		if (ptr.Offset != 0)
+		{
+			local string string_data = ReadString(kGrannyDataBaseOffset + ptr.Offset);
+			SPrintf(s, "%08Xh %s", ptr.Offset, string_data);
+		}
+		return s;
+	}
+	boolean SeekToGrannyString(GrannyString& ptr)
+	{
+		if (ptr.Offset != 0)
+		{
+			FSeek(kGrannyDataBaseOffset + ptr.Offset);
+			return true;
+		}
+
+		return false;
+	}
+	string GrannyStringToName(GrannyString& ptr)
+	{
+		if (ptr.Offset != 0)
+		{
+			return ReadString(kGrannyDataBaseOffset + ptr.Offset);
+		}
+		return "NULL";
+	}
+
+///////////////////////////////////////////////////////////
+// GrannyRef
+	typedef struct 
+	{
+		if (GRN_IS_64_BIT)
+		{
+			uint64 Offset   <format=hex>;
+		}
+		else
+		{
+			uint Offset     <format=hex>;
+		}
+	} GrannyRef <read=GrannyRefToString>;
+	string GrannyRefToString(GrannyRef& ptr)
+	{
+		local string s = "NULL";
+		if (ptr.Offset != 0)
+		{
+			SPrintf(s, "%08Xh", ptr.Offset);
+		}
+		return s;
+	}
+	boolean SeekToGrannyRef(GrannyRef& header, uint64& original_pos)
+	{
+		if (header.Length > 0)
+		{
+			original_pos = FTell();
+			FSeek(kGrannyDataBaseOffset + header.Offset);
+			return true;
+		}
+
+		original_pos = UINT64_MAX;
+		return false;
+	}
+	boolean UnSeekToGrannyRef(uint64 original_pos)
+	{
+		if (original_pos != UINT64_MAX)
+		{
+			FSeek(original_pos);
+			original_pos = UINT64_MAX;
+			return true;
+		}
+
+		return false;
+	}
+
+///////////////////////////////////////////////////////////
+// GrannyRefToArray
+	typedef struct 
+	{
+		if (GRN_IS_64_BIT)
+		{
+			uint Length;
+			uint64 Offset   <format=hex>;
+		}
+		else
+		{
+			uint Length;
+			uint Offset     <format=hex>;
+		}
+	} GrannyRefToArray <read=GrannyRefToArrayToString>;
+	string GrannyRefToArrayToString(GrannyRefToArray& header)
+	{
+		local string s = "EMPTY";
+		if (header.Length > 0)
+		{
+			SPrintf(s, "%08Xh  %08Xh", header.Length, header.Offset);
+		}
+		return s;
+	}
+	boolean SeekToGrannyRefToArray(GrannyRefToArray& header, uint64& original_pos)
+	{
+		if (header.Length > 0)
+		{
+			original_pos = FTell();
+			FSeek(kGrannyDataBaseOffset + header.Offset);
+			return true;
+		}
+
+		original_pos = UINT64_MAX;
+		return false;
+	}
+	boolean UnSeekToGrannyRefToArray(uint64 original_pos)
+	{
+		if (original_pos != UINT64_MAX)
+		{
+			FSeek(original_pos);
+			original_pos = UINT64_MAX;
+			return true;
+		}
+
+		return false;
+	}
+
+///////////////////////////////////////////////////////////
+// GrannyRefArray
+	struct GrannyArrayOfRefs;
+	struct GrannyRefArray (GrannyArrayOfRefs& refs)
+	{
+		if (GRN_IS_64_BIT)
+		{
+			uint64 Offsets[refs.Length] <format=hex, optimize=true>;
+		}
+		else
+		{
+			uint Offsets[refs.Length] <format=hex, optimize=true>;
+		}
+	};
+	boolean SeekToGrannyRefArrayElement(GrannyRefArray& refs, uint index)
+	{
+		local uint64 offset = refs.Offsets[index];
+		if (offset > 0)
+		{
+			FSeek(kGrannyDataBaseOffset + offset);
+			return true;
+		}
+
+		return false;
+	}
+
+///////////////////////////////////////////////////////////
+// GrannyArrayOfRefs
+	typedef struct 
+	{
+		if (GRN_IS_64_BIT)
+		{
+			uint Length;
+			uint64 Offset   <format=hex>;
+		}
+		else
+		{
+			uint Length;
+			uint Offset     <format=hex>;
+		}
+	} GrannyArrayOfRefs <read=GrannyArrayOfRefsToString>;
+	string GrannyArrayOfRefsToString(GrannyArrayOfRefs& header)
+	{
+		local string s = "EMPTY";
+		if (header.Length > 0)
+		{
+			SPrintf(s, "%08Xh  %08Xh", header.Length, header.Offset);
+		}
+		return s;
+	}
+	boolean SeekToGrannyArrayOfRefs(GrannyArrayOfRefs& header, uint64& original_pos)
+	{
+		if (header.Length > 0)
+		{
+			original_pos = FTell();
+			FSeek(kGrannyDataBaseOffset + header.Offset);
+			return true;
+		}
+
+		original_pos = UINT64_MAX;
+		return false;
+	}
+	boolean UnSeekToGrannyArrayOfRefs(uint64 original_pos)
+	{
+		if (original_pos != UINT64_MAX)
+		{
+			FSeek(original_pos);
+			original_pos = UINT64_MAX;
+			return true;
+		}
+
+		return false;
+	}
+
+///////////////////////////////////////////////////////////
+// granny structs
+
+enum granny_transform_flags
+{
+	HasPosition = 0x1,
+	HasOrientation = 0x2,
+	HasScaleShear = 0x4
+};
+
+struct granny_transform
+{
+	granny_transform_flags Flags;
+	Vector3F Position;
+	XMVECTOR Orientation;
+	Vector3F ScaleShear[3];
+};
+
+typedef struct 
+{
+	GrannyRef Type; // granny_data_type_definition*
+	GrannyRef Object;
+} granny_variant <read=granny_variant_ToString>;
+string granny_variant_ToString(granny_variant& v)
+{
+	local string s = "NONE";
+	if (v.Type.Offset != 0 || v.Object.Offset != 0)
+	{
+		SPrintf(s, "%08Xh %08Xh",
+			kGrannyDataBaseOffset + v.Type.Offset,
+			kGrannyDataBaseOffset + v.Object.Offset);
+	}
+	return s;
+}
+
+///////////////////////////////////////////////////////////
+// granny_data_type_definition
+	typedef struct 
+	{
+		grn_member_type Type;
+		GrannyString Name;
+		GrannyRef ReferenceType;
+		int32 ArrayWidth;
+		int32 Extra[3];
+		GrannyRef Ignored <hidden=true>;
+	} granny_data_type_definition <read=granny_data_type_definition_ToString>;
+	string granny_data_type_definition_ToString(granny_data_type_definition& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+///////////////////////////////////////////////////////////
+// granny_file_info
+	struct granny_skeleton;
+	struct granny_mesh;
+	struct granny_model;
+	struct granny_track_group;
+	struct granny_animation;
+	struct granny_file_info
+	{
+		GrannyRef ArtToolInfo;
+		GrannyRef ExporterInfo;
+
+		GrannyString FromFileName;
+
+		GrannyArrayOfRefs Textures;
+		GrannyArrayOfRefs Materials;
+
+		GrannyArrayOfRefs SkeletonsHeader;
+		GrannyArrayOfRefs VertexDatas;
+		GrannyArrayOfRefs TriTopologies;
+		GrannyArrayOfRefs MeshesHeader;
+		GrannyArrayOfRefs ModelsHeader;
+
+		GrannyArrayOfRefs TrackGroupsHeader;
+		GrannyArrayOfRefs AnimationsHeader;
+
+		granny_variant ExtendedData;
+
+		local uint x;
+		local uint64 original_pos;
+		if (SeekToGrannyArrayOfRefs(SkeletonsHeader, original_pos))
+		{
+			GrannyRefArray SkeletonRefs(SkeletonsHeader) <hidden=true>;
+			struct
+			{
+				for (x = 0; x < SkeletonsHeader.Length; x++)
+				{
+					if (SeekToGrannyRefArrayElement(SkeletonRefs, x))
+						granny_skeleton Skeleton;
+				}
+			} Skeletons;
+
+			UnSeekToGrannyArrayOfRefs(original_pos);
+		}
+
+		if (SeekToGrannyArrayOfRefs(MeshesHeader, original_pos))
+		{
+			GrannyRefArray MeshRefs(MeshesHeader) <hidden=true>;
+			struct
+			{
+				for (x = 0; x < MeshesHeader.Length; x++)
+				{
+					if (SeekToGrannyRefArrayElement(MeshRefs, x))
+						granny_mesh Mesh;
+				}
+			} Meshes;
+
+			UnSeekToGrannyArrayOfRefs(original_pos);
+		}
+
+		if (SeekToGrannyArrayOfRefs(ModelsHeader, original_pos))
+		{
+			GrannyRefArray ModelRefs(ModelsHeader) <hidden=true>;
+			struct
+			{
+				for (x = 0; x < ModelsHeader.Length; x++)
+				{
+					if (SeekToGrannyRefArrayElement(ModelRefs, x))
+						granny_model Mesh;
+				}
+			} Models;
+
+			UnSeekToGrannyArrayOfRefs(original_pos);
+		}
+
+		if (SeekToGrannyArrayOfRefs(TrackGroupsHeader, original_pos))
+		{
+			GrannyRefArray TrackGroupRefs(TrackGroupsHeader) <hidden=true>;
+			struct
+			{
+				for (x = 0; x < TrackGroupsHeader.Length; x++)
+				{
+					if (SeekToGrannyRefArrayElement(TrackGroupRefs, x))
+						granny_track_group TrackGroup;
+				}
+			} TrackGroups;
+
+			UnSeekToGrannyArrayOfRefs(original_pos);
+		}
+
+		if (SeekToGrannyArrayOfRefs(AnimationsHeader, original_pos))
+		{
+			GrannyRefArray AnimationRefs(AnimationsHeader) <hidden=true>;
+			struct
+			{
+				for (x = 0; x < AnimationsHeader.Length; x++)
+				{
+					if (SeekToGrannyRefArrayElement(AnimationRefs, x))
+						granny_animation Animation;
+				}
+			} Animations;
+
+			UnSeekToGrannyArrayOfRefs(original_pos);
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// granny_skeleton
+	struct granny_bone;
+
+	typedef struct 
+	{
+		GrannyString Name;
+
+		GrannyRefToArray BonesHeader;
+
+		int32 LODType;
+
+		local uint64 original_pos;
+		if (SeekToGrannyRefToArray(BonesHeader, original_pos))
+		{
+			granny_bone Bones[BonesHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+	} granny_skeleton <read=granny_skeleton_ToString>;
+	string granny_skeleton_ToString(granny_skeleton& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+	typedef struct 
+	{
+		GrannyString Name;
+
+		int32 ParentIndex;
+		granny_transform LocalTransform;
+		XMMATRIX InverseWorld4x4;
+		float LODError;
+
+		// light and camera data moved into extended
+		granny_variant ExtendedData;
+	} granny_bone <read=granny_bone_ToString>;
+	string granny_bone_ToString(granny_bone& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+///////////////////////////////////////////////////////////
+// granny_mesh
+	struct granny_bone_binding;
+	typedef struct 
+	{
+		GrannyString Name;
+
+		GrannyRef PrimaryVertexDataHeader;
+		GrannyRefToArray MorphTargetsHeader;
+		GrannyRef PrimaryTopologyHeader;
+		GrannyRefToArray MaterialBindingsHeader;
+		GrannyRefToArray BoneBindingsHeader;
+
+		granny_variant ExtendedData;
+
+		local uint64 original_pos;
+		if (SeekToGrannyRefToArray(BoneBindingsHeader, original_pos))
+		{
+			granny_bone_binding BoneBindings[BoneBindingsHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+	} granny_mesh <read=granny_mesh_ToString>;
+	string granny_mesh_ToString(granny_mesh& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+	typedef struct 
+	{
+		GrannyString BoneName;
+
+		// Bone relative OBB
+		Vector3F OBBMin;
+		Vector3F OBBMax;
+
+		GrannyRefToArray TriangleIndicesHeader;
+	} granny_bone_binding <read=granny_bone_binding_ToString>;
+	string granny_bone_binding_ToString(granny_bone_binding& ptr)
+	{
+		return GrannyStringToName(ptr.BoneName);
+	}
+
+///////////////////////////////////////////////////////////
+// granny_model
+	struct granny_model_mesh_binding;
+
+	typedef struct
+	{
+		GrannyString Name;
+
+		GrannyRef Skeleton;
+
+		granny_transform InitialPlacement;
+
+		GrannyRefToArray MeshBindingsHeader;
+
+		local uint64 original_pos;
+		if (SeekToGrannyRefToArray(MeshBindingsHeader, original_pos))
+		{
+			granny_model_mesh_binding MeshBindings[MeshBindingsHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+	} granny_model <read=granny_model_ToString>;
+	string granny_model_ToString(granny_model& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+	struct granny_model_mesh_binding
+	{
+		GrannyRef Mesh;
+	};
+
+///////////////////////////////////////////////////////////
+// granny_curve
+	/*struct granny_curve2
+	{
+		granny_variant CurveData;
+	};*/
+	typedef granny_variant granny_curve2;
+	struct granny_curve_data_header
+	{
+		byte Format;
+		byte Degree;
+	};
+
+///////////////////////////////////////////////////////////
+// granny_track_group
+	struct granny_vector_track;
+	struct granny_transform_track;
+	struct granny_text_track;
+	typedef struct 
+	{
+		enum granny_track_group_flags
+		{
+			AccumulationExtracted = 0x1,
+			TrackGroupIsSorted = 0x2,
+			AccumulationIsVDA = 0x4,
+		};
+
+		GrannyString Name;
+
+		GrannyRefToArray VectorTracksHeader;
+		GrannyRefToArray TransformTracksHeader;
+		GrannyRefToArray TransformLODErrorsHeader;
+		GrannyRefToArray TextTracksHeader;
+
+		granny_transform InitialPlacement;
+		granny_track_group_flags Flags;
+		Vector3F LoopTranslation;
+		GrannyRef PeriodicLoopRef;
+		GrannyRef RootMotionRef;
+		granny_variant ExtendedData;
+
+		local uint64 original_pos;
+		if (SeekToGrannyRefToArray(VectorTracksHeader, original_pos))
+		{
+			granny_vector_track VectorTracks[VectorTracksHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+
+		if (SeekToGrannyRefToArray(TransformTracksHeader, original_pos))
+		{
+			granny_transform_track TransformTracks[TransformTracksHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+
+		if (SeekToGrannyRefToArray(TransformLODErrorsHeader, original_pos))
+		{
+			float TransformLODErrors[TransformLODErrorsHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+
+		if (SeekToGrannyRefToArray(TextTracksHeader, original_pos))
+		{
+			granny_text_track TextTracks[TextTracksHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+	} granny_track_group <read=granny_track_group_ToString>;
+	string granny_track_group_ToString(granny_track_group& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+	typedef struct 
+	{
+		GrannyString Name;
+		uint32 TrackKey;
+		int32 Dimension;
+		granny_curve2 ValueCurve;
+	} granny_vector_track <read=granny_vector_track_ToString>;
+	string granny_vector_track_ToString(granny_vector_track& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+	typedef struct 
+	{
+		enum granny_transform_track_flags
+		{
+			UseAccumulatorNeighborhood = 0x1
+		};
+
+		GrannyString Name;
+		granny_transform_track_flags Flags;
+		granny_curve2 OrientationCurve;
+		granny_curve2 PositionCurve;
+		granny_curve2 ScaleShearCurve;
+	} granny_transform_track <read=granny_transform_track_ToString>;
+	string granny_transform_track_ToString(granny_transform_track& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+
+	struct granny_text_track_entry;
+	typedef struct 
+	{
+		GrannyString Name;
+		GrannyRefToArray EntriesHeader;
+
+		local uint64 original_pos;
+		if (SeekToGrannyRefToArray(EntriesHeader, original_pos))
+		{
+			granny_text_track_entry Entries[EntriesHeader.Length] <optimize=true>;
+
+			UnSeekToGrannyRefToArray(original_pos);
+		}
+	} granny_text_track <read=granny_text_track_ToString>;
+	string granny_text_track_ToString(granny_text_track& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}
+	typedef struct 
+	{
+		float TimeStamp;
+		GrannyString Text;
+	} granny_text_track_entry <read=granny_text_track_entry_ToString>;
+	string granny_text_track_entry_ToString(granny_text_track_entry& ptr)
+	{
+		return GrannyStringToName(ptr.Text);
+	}
+
+///////////////////////////////////////////////////////////
+// granny_animation
+	typedef struct 
+	{
+		GrannyString Name;
+
+		float Duration;
+		float TimeStep;
+		float Oversampling;
+
+		GrannyArrayOfRefs TrackGroupsHeader;
+	} granny_animation <read=granny_animation_ToString>;
+	string granny_animation_ToString(granny_animation& ptr)
+	{
+		return GrannyStringToName(ptr.Name);
+	}

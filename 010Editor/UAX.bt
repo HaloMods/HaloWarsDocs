@@ -3,7 +3,7 @@
 //
 //      File: UAX.bt
 //    Author: kornman00
-//   Version: 0.1
+//   Version: 0.2
 //   Purpose: Parse HaloWars UAX files.
 //  Category: HaloWars
 // File Mask: *.UAX
@@ -11,6 +11,8 @@
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
 //------------------------------------------------
+
+#include "Granny.bt"
 
 #define WELL_KNOWN_ECF
 #include "ECF.bt"
@@ -30,6 +32,20 @@ struct ECF_UAX
 		return;
 	}
 
+	local int user_suggested_format = InputRadioButtonBox(
+		"What game is this file for?",
+		"Select the game that matches where this content is from",
+		0,
+		"HaloWars DE or HaloWars 2 (64-bit, little endian)",
+		"HaloWars Xbox 360 (32-bit, big endian)"
+		);
+	if (user_suggested_format == -1)
+		return;
+	if (user_suggested_format == 0)
+		GRN_IS_64_BIT = true;
+	else
+		GRN_IS_64_BIT = false;
+
 	ECFChunkIteratorNew();
 	local ECFChunkIteratorNextResult iterNextResult;
 	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
@@ -39,7 +55,13 @@ struct ECF_UAX
 
 		switch (ECFChunkIterator_ID)
 		{
+			case cUAX_UaxChunk:
+				if (GRN_IS_64_BIT)
+					LittleEndian();
+				kGrannyDataBaseOffset = FTell();
+				granny_file_info file_info;
 				break;
+
 			default:
 				ECFChunkIteratorReadCurrentChunkData();
 				break;
