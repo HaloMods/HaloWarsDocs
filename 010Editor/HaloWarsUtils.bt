@@ -232,4 +232,39 @@ boolean SeekToPackedString(PackedString& header)
 }
 
 
+
+enum
+{
+	cResourceTagHeader_Chunk		= 0x714BFE00,
+	cResourceTagHeader_Signature	= 0x714C,
+	cResourceTagHeader_MajorVersion	= 0x11,
+	cResourceTagHeader_MinorVersion	= 0,
+};
+local boolean ResourceTagHeader_IS_64_BIT = false;
+struct ResourceTagHeader
+{
+	uint16 Signature		<format=hex>;
+	Assert(Signature == cResourceTagHeader_Signature, "Wrong signature");
+	byte MajorVersion		<format=hex>;
+	Assert(MajorVersion == cResourceTagHeader_MajorVersion, "Wrong maj version");
+	byte MinorVersion		<format=hex>;
+	Assert(MinorVersion == cResourceTagHeader_MinorVersion, "Wrong min version");
+	uint16 HeaderSize		<format=hex>;
+	uint16 DataSize			<format=hex>;
+	uint32 HeaderAdler32	<format=hex>;
+	uint64 TagTimeStamp		<format=hex>;
+	uint32 TagGuid[4]		<format=hex>;
+	PackedString TagMachineName(ResourceTagHeader_IS_64_BIT);
+	PackedString TagUserName(ResourceTagHeader_IS_64_BIT);
+	PackedString SourceFilename(ResourceTagHeader_IS_64_BIT);
+	byte SourceDigest[20]		<format=hex>;
+	uint64 SourceFileSize		<format=hex>;
+	uint64 SourceFileTimeStamp	<format=hex>;
+	PackedString CreatorToolCommandLine(ResourceTagHeader_IS_64_BIT);
+	byte CreatorToolVersion;
+	byte Platform;
+	uint16 Unused[5];
+};
+
+
 #endif

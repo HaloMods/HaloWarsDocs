@@ -58,14 +58,14 @@ typedef struct (WORD extra_data_size)
 string ECFChunkHeaderToString(ECFChunkHeader& Header)
 {
 	local string Name;
-	SPrintf(Name, "%016X", Header.ID);
+	SPrintf(Name, "%016LX", Header.ID);
 	return Name;
 }
 
 typedef struct (ECFChunkHeader& header)
 {
 	local string Name;
-	SPrintf(Name, "%016X", header.ID);
+	SPrintf(Name, "%016LX", header.ID);
 
 	BYTE Data[ header.Size ] <optimize=true>;
 } ECFChunkData <read=ECFChunkDataRead>;
@@ -74,10 +74,10 @@ string ECFChunkDataRead(ECFChunkData& Data)
 	return Data.Name;
 }
 
-typedef struct (DWORD id, DWORD size)
+typedef struct (QWORD id, DWORD size)
 {
 	local string Name;
-	SPrintf(Name, "%016X", id);
+	SPrintf(Name, "%016LX", id);
 
 	BYTE Data[ size ] <optimize=true>;
 } ECFChunkDataLoose <read=ECFChunkDataLooseRead>;
@@ -88,6 +88,7 @@ string ECFChunkDataLooseRead(ECFChunkDataLoose& Data)
 
 struct ECFFileStream
 {
+	local uint64 StreamBaseOffset = FTell();
 	ECFHeader FileHeader;
 
 	local DWORD FileHeaderExtraDataSize = FileHeader.HeaderSize - sizeof(FileHeader);
@@ -107,7 +108,7 @@ int64 SeekToChunkById(ECFFileStream& fileStream, QWORD id)
 		if (fileStream.ChunkHeaders[index].Size == 0)
 			return -2;
 
-		FSeek(fileStream.ChunkHeaders[index].Offset);
+		FSeek(fileStream.StreamBaseOffset + fileStream.ChunkHeaders[index].Offset);
 		return fileStream.ChunkHeaders[index].Size;
 	}
 
@@ -119,7 +120,7 @@ boolean ReadChunkBytes(ECFFileStream& fileStream, DWORD index)
 	if (fileStream.ChunkHeaders[index].Size == 0)
 		return false;
 
-	FSeek(fileStream.ChunkHeaders[index].Offset);
+	FSeek(fileStream.StreamBaseOffset + fileStream.ChunkHeaders[index].Offset);
 	ECFChunkData ChunkData( fileStream.ChunkHeaders[index] );
 	return true;
 }
@@ -159,7 +160,7 @@ ECFChunkIteratorNextResult ECFChunkIteratorNext(ECFFileStream& fileStream)
 	if (index >= (int)fileStream.FileHeader.NumChunks)
 		return kECFChunkIteratorNextEndOfList;
 
-	ECFChunkIterator_Offset = fileStream.ChunkHeaders[index].Offset;
+	ECFChunkIterator_Offset = fileStream.StreamBaseOffset + fileStream.ChunkHeaders[index].Offset;
 	ECFChunkIterator_Size = fileStream.ChunkHeaders[index].Size;
 	ECFChunkIterator_ID = fileStream.ChunkHeaders[index].ID;
 

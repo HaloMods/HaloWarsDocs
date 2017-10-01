@@ -1,0 +1,300 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//		File: DDX.bt
+//	 Author: kornman00
+//	Version: 0.1
+//	Purpose: Parse HaloWars DDX files.
+//  Category: HaloWars
+// File Mask: *.DDX
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+// If I don't specify <QWORD> here, the 64-bit chunk IDs get truncated to 32-bit
+enum <QWORD>
+{
+	cDDX_FileID				= 0x13CF5D01,
+
+	cDDX_HeaderChunk		= 0x1D8828C6ECAF45F2,
+	cDDX_IdChunk			= 0x93F8593B8A8493EF,
+	cDDX_Mip0Chunk			= 0x3F74B8E87D2B44BF,
+	cDDX_MipChainChunk		= 0x46F1FD3F394348B8,
+
+	cDDX_HeaderSignature	= 0xDDBB7738,
+	cDDX_Version = 7,
+	cDDX_MinRequiredVersion = 6,
+
+	cDXTQ_FileID			= 0x1234997E,
+	cDXTQ_HeaderChunk = 0,
+	cDXTQ_MemoryChunk = 1,
+
+	cDXTQ_HeaderVersion2 = 0xED02,
+	cDXTQ_HeaderVersion3 = 0xED03,
+};
+
+enum <byte> eDDXPlatform
+{
+	cDDXPlatformNone,
+	cDDXPlatformXbox,
+};
+
+enum eDDXDataFormat
+{
+	cDDXDataFormatInvalid,
+
+	cDDXDataFormatA8R8G8B8,
+	cDDXDataFormatA8B8G8R8,
+	cDDXDataFormatA8,
+
+	cDDXDataFormatDXT1,
+	cDDXDataFormatDXT3,
+	cDDXDataFormatDXT5,
+	cDDXDataFormatDXT5N,
+	cDDXDataFormatDXT5Y,
+	cDDXDataFormatDXN,
+
+	cDDXDataFormatUnused0,
+	cDDXDataFormatUnused1,
+
+	cDDXDataFormatDXT5H,
+	cDDXDataFormatA16B16G16R16F,
+
+	cDDXDataFormatDXT1Q,
+	cDDXDataFormatDXT5Q,
+	cDDXDataFormatDXT5HQ,
+	cDDXDataFormatDXNQ,
+	cDDXDataFormatDXT5YQ,
+};
+boolean IsDDXDataFormatDXTQ(eDDXDataFormat format)
+{
+	return format == cDDXDataFormatDXT1Q
+		|| format == cDDXDataFormatDXT5Q
+		|| format == cDDXDataFormatDXT5HQ
+		|| format == cDDXDataFormatDXNQ
+		|| format == cDDXDataFormatDXT5YQ;
+}
+
+enum eDDXResourceType
+{
+	cDDXResourceTypeRegularMap,
+	cDDXResourceTypeNormalMap,
+	cDDXResourceTypeCubeMap,
+};
+
+struct DDX_Header
+{
+	enum eDDX_HeaderFlags
+	{
+		cDDXHeaderFlagsHasAlpha = (1<<0)
+	};
+
+	uint32 Signature;
+	Assert(Signature == cDDX_HeaderSignature, "Wrong signature");
+	uint32 HeaderSize;
+	uint32 HeaderAdler32;
+	uint16 CreatorVersion;
+	Assert(CreatorVersion == cDDX_Version, "Wrong CreatorVersion");
+	uint16 MinRequiredVersion;
+	Assert(MinRequiredVersion == cDDX_MinRequiredVersion, "Wrong MinRequiredVersion");
+	byte DimensionPowerOfTwo[2];
+	byte MipChainSize;
+	eDDXPlatform Platform;
+
+	eDDXDataFormat DataFormat;
+	eDDXResourceType ResourceType;
+	eDDX_HeaderFlags Flags;
+	float HDRScale;
+};
+
+struct DDX_ID
+{
+	uint32 SourceFileId		<format=hex>;
+	uint32 SourceFileCrc	<format=hex>;
+	uint32 UpdateIndex;
+};
+
+// Alpha build
+struct DXTQ_HeaderV2
+{
+	struct SegmentHeaderV2
+	{
+		uint32 FirstBlock;
+		uint32 NumBlocks;
+		uint32 DataOffset	<format=hex>;
+		uint32 DataLength	<format=hex>;
+	};
+
+	uint16 ColorCodebookSize;
+	uint16 ColorSelectorCodebookSize;
+	uint16 AlphaCodebookSize;
+	uint16 AlphaSelectorCodebookSize;
+
+	uint32 D3DTexOfs					<format=hex>;
+
+	uint32 ColorCodebookOffset			<format=hex>;
+	uint32 ColorSelectorCodebookOffset	<format=hex>;
+	uint32 AlphaCodebookOffset			<format=hex>;
+	uint32 AlphaSelectorCodebookOffset	<format=hex>;
+
+	SegmentHeaderV2 Segment0[2];
+	SegmentHeaderV2 Segment1[2];
+
+	byte Segment0Count;
+	byte Segment1Count;
+};
+
+struct DXTQ_HeaderV3
+{
+	struct SegmentHeaderV3
+	{
+		uint32 NumBlocks;
+		uint32 DataOffset	<format=hex>;
+		uint32 DataLength	<format=hex>;
+	};
+
+	uint32 BaseBlocks;
+	uint32 MipBlocks;
+
+	uint32 ColorCodebookOffset			<format=hex>;
+	uint16 ColorCodebookSize;
+	uint16 ColorCodebookBytes			<format=hex>;
+
+	uint32 ColorSelectorCodebookOffset	<format=hex>;
+	uint16 ColorSelectorCodebookSize;
+	uint16 ColorSelectorCodebookBytes	<format=hex>;
+
+	uint32 AlphaCodebookOffset			<format=hex>;
+	uint16 AlphaCodebookSize;
+	uint16 AlphaCodebookBytes			<format=hex>;
+
+	uint32 AlphaSelectorCodebookOffset	<format=hex>;
+	uint16 AlphaSelectorCodebookSize;
+	uint16 AlphaSelectorCodebookBytes	<format=hex>;
+
+	uint32 D3DTexOfs					<format=hex>;
+
+	SegmentHeaderV3 Tables;
+	SegmentHeaderV3 BaseIndices;
+	SegmentHeaderV3 MipIndices;
+};
+
+struct DXTQ_Header
+{
+	uint16 Version;
+	// lo sizeof(D3DTexture)
+	// hi sizeof(D3DVertexBuffer)
+	uint16 D3DStructSize;
+
+	uint32 BaseBlocks;
+	uint32 MipBlocks;
+
+	if (Version == cDXTQ_HeaderVersion2)
+		DXTQ_HeaderV2 Version2;
+	else if (Version == cDXTQ_HeaderVersion3)
+		DXTQ_HeaderV3 Version3;
+	else
+		Assert(false, "Unknown version");
+};
+
+local uint64 BaseOffsetOfDXTQ = UINT64_MAX;
+
+struct ECF_DDX
+{
+	if (FileStream.FileHeader.ID != cDDX_FileID)
+	{
+		ReadAllChunkBytes(FileStream);
+		return;
+	}
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cDDX_HeaderChunk:
+				DDX_Header Header;
+				break;
+
+			case cDDX_IdChunk:
+				DDX_ID ID;
+				break;
+
+			case cDDX_Mip0Chunk:
+				if (IsDDXDataFormatDXTQ(Header.DataFormat))
+				{
+					Assert(ReadUInt() == cECFHeaderSignature, "Expected packed DXTQ data");
+					BaseOffsetOfDXTQ = FTell();
+					ECFHeader Mip0StreamFileHeader;
+				}
+				else
+				{
+					ECFChunkIteratorReadCurrentChunkData();
+				}
+				break;
+
+			//case cDDX_MipChainChunk:
+			//	break;
+
+			case cResourceTagHeader_Chunk:
+				// ECF-based DDX files are only on the 360, so hard coding some assumptions:
+				// resource tag is LE (made by PC tools) and 32-bit (PC tools weren't 64-bit until HWDE)
+				LittleEndian();
+				ResourceTagHeader_IS_64_BIT = false;
+				kPackedDataBaseOffset = FTell();
+				ResourceTagHeader ResourceTag;
+				// Assuming we need to go back to BE
+				BigEndian();
+				break;
+
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+ECF_DDX DDX;
+
+struct ECF_DXTQ (ECFFileStream& Mip0Stream)
+{
+	if (Mip0Stream.FileHeader.ID != cDXTQ_FileID)
+	{
+		ReadAllChunkBytes(Mip0Stream);
+		return;
+	}
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(Mip0Stream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cDXTQ_HeaderChunk:
+				DXTQ_Header Header;
+				break;
+
+			case cDXTQ_MemoryChunk:
+			default:
+				ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+	}
+};
+
+if (BaseOffsetOfDXTQ != UINT64_MAX)
+{
+	FSeek(BaseOffsetOfDXTQ);
+	ECFFileStream Mip0Stream;
+	ECF_DXTQ DXTQ(Mip0Stream);
+}
