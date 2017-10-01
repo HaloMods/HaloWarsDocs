@@ -3,7 +3,7 @@
 //
 //		File: DDX.bt
 //	 Author: kornman00
-//	Version: 0.1
+//	Version: 0.2
 //	Purpose: Parse HaloWars DDX files.
 //  Category: HaloWars
 // File Mask: *.DDX
@@ -141,11 +141,11 @@ struct DXTQ_HeaderV2
 	uint32 AlphaCodebookOffset			<format=hex>;
 	uint32 AlphaSelectorCodebookOffset	<format=hex>;
 
-	SegmentHeaderV2 Segment0[2];
-	SegmentHeaderV2 Segment1[2];
+	SegmentHeaderV2 BaseIndices[2];
+	SegmentHeaderV2 MipIndices[2];
 
-	byte Segment0Count;
-	byte Segment1Count;
+	byte NumBaseSegments;
+	byte NumMipSegments;
 };
 
 struct DXTQ_HeaderV3
