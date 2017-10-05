@@ -1,0 +1,299 @@
+//------------------------------------------------
+//--- 010 Editor v3.0 Binary Template
+//
+//      File: LRP.bt
+//    Author: kornman00
+//   Version: 0.1
+//   Purpose: Parse HaloWars LRP files.
+//  Category: HaloWars
+// File Mask: *.LRP
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+#define WELL_KNOWN_ECF
+#include "ECF.bt"
+
+enum <QWORD>
+{
+	cLRP_FileID				= 0x00706706,
+
+	cLRP_HeaderChunk		= 0x34F00706,
+	cLRP_LandPassChunk		= 0xAAAA000000000000,
+	cLRP_FloodPassChunk		= 0xAAAB000000000000,
+	cLRP_ScarabPassChunk	= 0xAAAC000000000000,
+	cLRP_TreeChunkMask		= 0xFFFF000000000000,
+
+	cLRP_Version = 0x0002,
+	cLRP_1 = 0x0001,
+	cLRP_2 = 0x0002,
+	cLRP_3 = 0x0003,
+	cLRP_4 = 0x0004,
+
+	cLRP_NumberOfBuckets = 3,
+	cLRP_MaxLevel = 3,
+	cLRP_MaxDepth = 4,
+};
+
+enum eLRPTreeContext
+{
+	kLRPTreeContextNone,
+	kLRPTreeContextLand,
+	kLRPTreeContextFlood,
+	kLRPTreeContextScarab,
+};
+string LRPTreeContextToString(eLRPTreeContext e)
+{
+	switch (e)
+	{
+		case kLRPTreeContextLand:
+			return "Land";
+		case kLRPTreeContextFlood:
+			return "Flood";
+		case kLRPTreeContextScarab:
+			return "Scarab";
+	}
+
+	return "UNKNOWN";
+}
+
+typedef enum <byte> 
+{
+	//0 = none
+	cLRPConnectivityNorth = 1<<0,
+	cLRPConnectivityEast = 1<<1,
+	cLRPConnectivitySouth = 1<<2,
+	cLRPConnectivityWest = 1<<3,
+	cLRPConnectivityAll = cLRPConnectivityNorth | cLRPConnectivityEast | cLRPConnectivitySouth | cLRPConnectivityWest,
+} eLRPConnectivityFlags <read=eLRPConnectivityFlagsToString>;
+string eLRPConnectivityFlagsToString(eLRPConnectivityFlags f)
+{
+	if (f == 0)
+		return "None";
+
+	local string s = "";
+	if ((f & cLRPConnectivityAll) == cLRPConnectivityAll)
+	{
+		s += "All";
+	}
+	else
+	{
+		if (f & cLRPConnectivityNorth)
+			s += "N";
+		if (f & cLRPConnectivityEast)
+			s += "E";
+		if (f & cLRPConnectivitySouth)
+			s += "S";
+		if (f & cLRPConnectivityWest)
+			s += "W";
+	}
+
+	return s;
+}
+
+typedef enum <byte> 
+{
+	//0 = passable
+	cLRPPassabilityNWInvalid = 1<<0,
+	cLRPPassabilityNEInvalid = 1<<1,
+	cLRPPassabilitySEInvalid = 1<<2,
+	cLRPPassabilitySWInvalid = 1<<3,
+	cLRPPassabilityInUse = 1<<4,
+	cLRPPassabilityBroken = 1<<5,
+	cLRPPassabilityPlayerQuad = 1<<6,
+
+	cLRPPassabilityAllInvalid = cLRPPassabilityNWInvalid | cLRPPassabilityNEInvalid | cLRPPassabilitySEInvalid | cLRPPassabilitySWInvalid,
+} eLRPPassabilityFlags <read=eLRPPassabilityFlagsToString>;
+string eLRPPassabilityFlagsToString(eLRPPassabilityFlags f)
+{
+	if (f == 0)
+		return "Passable";
+
+	local string s = "";
+	if ((f & cLRPPassabilityAllInvalid) == cLRPPassabilityAllInvalid)
+	{
+		s += " AllInvalid";
+	}
+	else
+	{
+		if (f & cLRPPassabilityNWInvalid)
+			s += " NWInvalid";
+		if (f & cLRPPassabilityNEInvalid)
+			s += " NEInvalid";
+		if (f & cLRPPassabilitySEInvalid)
+			s += " SEInvalid";
+		if (f & cLRPPassabilitySWInvalid)
+			s += " SWInvalid";
+	}
+
+	if (f & cLRPPassabilityInUse)
+		s += " InUse";
+	if (f & cLRPPassabilityBroken)
+		s += " Broken";
+	if (f & cLRPPassabilityPlayerQuad)
+		s += " PlayerQuad";
+
+	return s;
+}
+
+// 4 bits
+enum <byte> eLRPNodeStatus
+{
+	cLRPNodeInQueue		= 1<<0,
+	cLRPNodeInPath		= 1<<1,
+	cLRPNodeInTarget	= 1<<2,
+	cLRPNodeTargetClear	= 1<<3,
+};
+
+typedef struct 
+{
+	//eLRPConnectivityFlags PathingConnections[cLRP_NumberOfBuckets]	<optimize=true>;
+	eLRPConnectivityFlags PathingConnections0;
+	eLRPConnectivityFlags PathingConnections1;
+	eLRPConnectivityFlags PathingConnections2;
+
+	//eLRPPassabilityFlags Passability[cLRP_NumberOfBuckets]			<optimize=true>;
+	eLRPPassabilityFlags Passability0;
+	eLRPPassabilityFlags Passability1;
+	eLRPPassabilityFlags Passability2;
+
+	// these are ignored by loading code and only matter at runtime
+	eLRPNodeStatus Status	<hidden=true>;
+	BYTE : 8;
+	uint32 PlayerMask		<hidden=true>;
+
+	//Assert(Status == 0, "Status should be zero");
+	//Assert(PlayerMask == 0, "PlayerMask should be zero");
+} LRP_Node <read=LRP_NodeToString>;
+string LRP_NodeToString(LRP_Node& n)
+{
+	if (n.PathingConnections0 == 0 &&
+		n.PathingConnections1 == 0 &&
+		n.PathingConnections2 == 0 &&
+		n.Passability0 == cLRPPassabilityAllInvalid &&
+		n.Passability1 == cLRPPassabilityAllInvalid &&
+		n.Passability2 == cLRPPassabilityAllInvalid)
+	{
+		return "C(None); P(All Invalid)";
+	}
+	if (n.PathingConnections0 == cLRPConnectivityAll &&
+		n.PathingConnections1 == cLRPConnectivityAll &&
+		n.PathingConnections2 == cLRPConnectivityAll &&
+		n.Passability0 == 0 &&
+		n.Passability1 == 0 &&
+		n.Passability2 == 0)
+	{
+		return "C(All); P(All)";
+	}
+
+	local string s = "";
+
+	if (n.PathingConnections0 != 0)
+		s += " C0(" + eLRPConnectivityFlagsToString(n.PathingConnections0) + ")";
+	if (n.PathingConnections1 != 0)
+		s += " C1(" + eLRPConnectivityFlagsToString(n.PathingConnections1) + ")";
+	if (n.PathingConnections2 != 0)
+		s += " C2(" + eLRPConnectivityFlagsToString(n.PathingConnections2) + ")";
+
+	if (n.Passability0 != cLRPPassabilityAllInvalid)
+		s += " P0(" + eLRPPassabilityFlagsToString(n.Passability0) + ")";
+	if (n.Passability1 != cLRPPassabilityAllInvalid)
+		s += " P1(" + eLRPPassabilityFlagsToString(n.Passability1) + ")";
+	if (n.Passability1 != cLRPPassabilityAllInvalid)
+		s += " P2(" + eLRPPassabilityFlagsToString(n.Passability2) + ")";
+
+	return s;
+}
+
+typedef struct (eLRPTreeContext context, uint64 node_index, uint nodes_count)
+{
+	local string Name;
+	SPrintf(Name, " %s[%d]", LRPTreeContextToString(context), node_index);
+
+	// LRP_Node Nodes[XSize][ZSize]
+	LRP_Node Nodes[ nodes_count ] <optimize=true>;
+} LRP_Tree <read=LRP_TreeToString>;
+string LRP_TreeToString(LRP_Tree& tree)
+{
+	return tree.Name;
+}
+
+struct ECF_LRP
+{
+	if (FileStream.FileHeader.ID != cLRP_FileID)
+	{
+		ReadAllChunkBytes(FileStream);
+		return;
+	}
+
+	local boolean maybe_tree_data = false;
+
+	local eLRPTreeContext tree_context = kLRPTreeContextNone;
+	local uint64 tree_id = UINT64_MAX;
+	local uint64 tree_node_index = UINT64_MAX;
+	local uint64 node_index;
+	local uint nodes_count;
+
+	ECFChunkIteratorNew();
+	local ECFChunkIteratorNextResult iterNextResult;
+	while ((iterNextResult = ECFChunkIteratorNext(FileStream)) != kECFChunkIteratorNextEndOfList)
+	{
+		if (iterNextResult == kECFChunkIteratorNextNoData)
+			continue;
+
+		maybe_tree_data = false;
+
+		switch (ECFChunkIterator_ID)
+		{
+			case cLRP_HeaderChunk:
+				LittleEndian();
+				int Version;
+				Assert(Version == cLRP_Version, "Wrong version");
+				break;
+
+			default:
+				maybe_tree_data = true;
+				//ECFChunkIteratorReadCurrentChunkData();
+				break;
+		}
+
+		tree_context = kLRPTreeContextNone;
+		tree_node_index = UINT64_MAX;
+		if (maybe_tree_data)
+		{
+			tree_id = ECFChunkIterator_ID & cLRP_TreeChunkMask;
+			if (tree_id == cLRP_LandPassChunk)
+			{
+				tree_context = kLRPTreeContextLand;
+				tree_node_index = ECFChunkIterator_ID & (~cLRP_LandPassChunk);
+			}
+			else if (tree_id == cLRP_FloodPassChunk)
+			{
+				tree_context = kLRPTreeContextFlood;
+				tree_node_index = ECFChunkIterator_ID & (~cLRP_FloodPassChunk);
+			}
+			else if (tree_id == cLRP_ScarabPassChunk)
+			{
+				tree_context = kLRPTreeContextScarab;
+				tree_node_index = ECFChunkIterator_ID & (~cLRP_ScarabPassChunk);
+			}
+		}
+		if (maybe_tree_data && tree_context == kLRPTreeContextNone)
+		{
+			ECFChunkIteratorReadCurrentChunkData();
+		}
+		else if (maybe_tree_data && tree_context > kLRPTreeContextNone)
+		{
+			Assert((ECFChunkIterator_Size % sizeof(LRP_Node))==0, "Unexpected nodes chunk size");
+			Assert(tree_node_index > 0, "Tree node index should start at 1");
+			Assert(tree_node_index <= cLRP_MaxDepth, "Tree node index outside the max depth");
+
+			node_index = tree_node_index - 1;
+			nodes_count = ECFChunkIterator_Size / sizeof(LRP_Node);
+
+			LRP_Tree Tree(tree_context, tree_node_index, nodes_count);
+		}
+	}
+};
+ECF_LRP LRP;
