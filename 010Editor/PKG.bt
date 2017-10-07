@@ -96,4 +96,4 @@ struct CaPackageEntriesData
 		CaPackageEntryData Data(FAT.Entries[x]);
 	}
 };
-CaPackageEntriesData Files;
+CaPackageEntriesData Files <open=true>;

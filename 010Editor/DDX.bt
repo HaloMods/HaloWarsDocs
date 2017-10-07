@@ -6,7 +6,7 @@
 //	Version: 0.2
 //	Purpose: Parse HaloWars DDX files.
 //  Category: HaloWars
-// File Mask: *.DDX
+// File Mask: *.ddx, *.DDX
 //
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
@@ -261,7 +261,7 @@ struct ECF_DDX
 		}
 	}
 };
-ECF_DDX DDX;
+ECF_DDX DDX <open=true>;
 
 struct ECF_DXTQ (ECFFileStream& Mip0Stream)
 {
@@ -296,5 +296,5 @@ if (BaseOffsetOfDXTQ != UINT64_MAX)
 {
 	FSeek(BaseOffsetOfDXTQ);
 	ECFFileStream Mip0Stream;
-	ECF_DXTQ DXTQ(Mip0Stream);
+	ECF_DXTQ DXTQ(Mip0Stream) <open=true>;
 }

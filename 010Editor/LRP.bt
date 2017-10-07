@@ -6,7 +6,7 @@
 //   Version: 0.1
 //   Purpose: Parse HaloWars LRP files.
 //  Category: HaloWars
-// File Mask: *.LRP
+// File Mask: *.lrp, *.LRP
 //
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
@@ -296,4 +296,4 @@ struct ECF_LRP
 		}
 	}
 };
-ECF_LRP LRP;
+ECF_LRP LRP <open=true>;

@@ -6,7 +6,7 @@
 //   Version: 0.1
 //   Purpose: Parse HaloWars2 XTD files.
 //  Category: HaloWars
-// File Mask: *.xtd
+// File Mask: *.xtd, *.XTD
 //
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
@@ -94,7 +94,7 @@ struct XTD_TessChunk
 		PatchBB PatchBBs[ numQuads ] <optimize=true>; 
 };
 
-struct ECF_XTH
+struct ECF_XTD
 {
 	if (SeekToChunkById(FileStream, cXTD_XTDHeader) < 0)
 	{
@@ -142,4 +142,4 @@ struct ECF_XTH
 	}
 };
 LittleEndian();
-ECF_XTH XTH;
+ECF_XTD XTD <open=true>;

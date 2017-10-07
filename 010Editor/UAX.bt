@@ -68,4 +68,4 @@ struct ECF_UAX
 		}
 	}
 };
-ECF_UAX UAX;
+ECF_UAX UAX <open=true>;

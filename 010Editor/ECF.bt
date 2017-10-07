@@ -6,6 +6,7 @@
 //   Version: 1.0
 //   Purpose: Parse Any HaloWars ECF files.
 //  Category: HaloWars
+//  ID Bytes: DA BA 77 37
 //
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
@@ -121,7 +122,7 @@ boolean ReadChunkBytes(ECFFileStream& fileStream, DWORD index)
 		return false;
 
 	FSeek(fileStream.StreamBaseOffset + fileStream.ChunkHeaders[index].Offset);
-	ECFChunkData ChunkData( fileStream.ChunkHeaders[index] );
+	ECFChunkData ChunkData( fileStream.ChunkHeaders[index] ) <open=true>;
 	return true;
 }
 

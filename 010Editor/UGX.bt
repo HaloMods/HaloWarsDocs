@@ -6,7 +6,7 @@
 //   Version: 0.4
 //   Purpose: Parse HaloWars UGX files.
 //  Category: HaloWars
-// File Mask: *.ugx
+// File Mask: *.ugx, *.UGX
 //
 // More information available at
 //  https://github.com/KornnerStudios/HaloWarsDocs
@@ -426,4 +426,4 @@ struct ECF_UGX
 		}
 	}
 };
-ECF_UGX UGX;
+ECF_UGX UGX <open=true>;
