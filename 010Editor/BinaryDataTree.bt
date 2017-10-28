@@ -13,6 +13,7 @@
 
 #include "HaloWarsUtils.bt"
 
+local uint64 kBinaryDataTreeBaseOffset = UINT64_MAX;
 local uint64 kBinaryDataTreeNameDataOffset = UINT64_MAX;
 local uint64 kBinaryDataTreeValueDataOffset = UINT64_MAX;
 
@@ -146,11 +147,23 @@ string BBinaryDataTreeNameValueToString(BBinaryDataTreeNameValue& v)
 	if (TypeClass == cTypeNull)
 		return name;
 
+	local string StringValue = "";
+	if (TypeClass == cTypeString && !DirectEncoding)
+	{
+		if (SizeInBytes == 0)
+			StringValue = ReadString(kBinaryDataTreeValueDataOffset + v.Value);
+	}
+
 	local string s;
 	SPrintf(s,
-		"%s  %s  %s"
+		"%s%s %u %u %s  %s  %s  %s"
+		, IsUnsigned ? "U" : " "
+		, DirectEncoding ? "D" : " "
+		, 1<<SizeInBytes
+		, TotalDataSize
 		, TypeClassToString(TypeClass)
 		, name
+		, StringValue
 		, IsLastName ? "LAST" : ""
 		);
 	return s;
@@ -158,6 +171,8 @@ string BBinaryDataTreeNameValueToString(BBinaryDataTreeNameValue& v)
 
 struct BBinaryDataTree
 {
+	kBinaryDataTreeBaseOffset = FTell();
+
 	BBinaryDataTreeHeader Header;
 
 	if (Header.NumUserSections > 0)
@@ -183,7 +198,7 @@ struct BBinaryDataTree
 	kBinaryDataTreeValueDataOffset = UINT64_MAX;
 	if (ValueDataSize > 0)
 	{
-		ValueDataOffset = AlignUpValue(FTell(), 16);
+		ValueDataOffset = kBinaryDataTreeBaseOffset + AlignUpValue(FTell() - kBinaryDataTreeBaseOffset, 16);
 		kBinaryDataTreeValueDataOffset = ValueDataOffset;
 	}
 
