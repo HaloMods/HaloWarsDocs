@@ -15,6 +15,11 @@
 #define WELL_KNOWN_ECF
 #include "ECF.bt"
 
+//#define X360DATA
+#ifndef X360DATA
+#define PCDATA
+#endif
+
 enum
 {
 	cXTD_Version               = 0x000C,
@@ -56,14 +61,109 @@ string XTD_TerrainChunkGetName(XTD_TerrainChunk& chunk)
 	return name;
 }
 
+local float XTD_AtlasChunk_MinX;
+local float XTD_AtlasChunk_MinY;
+local float XTD_AtlasChunk_MinZ;
+local float XTD_AtlasChunk_RangeX;
+local float XTD_AtlasChunk_RangeY;
+local float XTD_AtlasChunk_RangeZ;
+
+const uint32 kBitMask10 = (1<<10)-1;
+const float kBitMask10Rcp = 1.0 / kBitMask10;
+
+typedef uint XMFLOAT3PK_101010_Position 
+	#ifdef X360DATA
+	<read=XMFLOAT3PK_101010_PositionRead_Xenon>
+	#else
+	<read=XMFLOAT3PK_101010_PositionRead_PC>
+	#endif
+	;
+string XMFLOAT3PK_101010_PositionRead_Xenon(XMFLOAT3PK_101010_Position& v)
+{
+	local string s;
+	local uint32 x = (v >> 22) & kBitMask10;
+	local uint32 y = (v >> 11) & kBitMask10;
+	local uint32 z = (v >>  0) & kBitMask10;
+	local float fx = (((x * kBitMask10Rcp) * XTD_AtlasChunk_RangeX)-XTD_AtlasChunk_MinX);
+	local float fy = (((y * kBitMask10Rcp) * XTD_AtlasChunk_RangeY)-XTD_AtlasChunk_MinY);
+	local float fz = (((z * kBitMask10Rcp) * XTD_AtlasChunk_RangeZ)-XTD_AtlasChunk_MinZ);
+
+	SPrintf(s, "(%g, %g, %g)", fx, fy, fz);
+	return s;
+}
+string XMFLOAT3PK_101010_PositionRead_PC(XMFLOAT3PK_101010_Position& v)
+{
+	local string s;
+	local uint32 x = (v >> 20) & kBitMask10;
+	local uint32 y = (v >> 10) & kBitMask10;
+	local uint32 z = (v >>  0) & kBitMask10;
+	local float fx = (((x * kBitMask10Rcp) * XTD_AtlasChunk_RangeX)-XTD_AtlasChunk_MinX);
+	local float fy = (((y * kBitMask10Rcp) * XTD_AtlasChunk_RangeY)-XTD_AtlasChunk_MinY);
+	local float fz = (((z * kBitMask10Rcp) * XTD_AtlasChunk_RangeZ)-XTD_AtlasChunk_MinZ);
+
+	SPrintf(s, "(%g, %g, %g)", fx, fy, fz);
+	return s;
+}
+
+typedef uint XMFLOAT3PK_101010_Normal 
+	#ifdef X360DATA
+	<read=XMFLOAT3PK_101010_NormalRead_Xenon>
+	#else
+	<read=XMFLOAT3PK_101010_NormalRead_PC>
+	#endif
+	;
+string XMFLOAT3PK_101010_NormalRead_Xenon(XMFLOAT3PK_101010_Normal& v)
+{
+	local string s;
+	local uint32 x = (v >> 22) & kBitMask10;
+	local uint32 y = (v >> 11) & kBitMask10;
+	local uint32 z = (v >>  0) & kBitMask10;
+	local float fx = (((x * kBitMask10Rcp) * 2.0)-1.0);
+	local float fy = (((y * kBitMask10Rcp) * 2.0)-1.0);
+	local float fz = (((z * kBitMask10Rcp) * 2.0)-1.0);
+
+	SPrintf(s, "(%g, %g, %g)", fx, fy, fz);
+	return s;
+}
+string XMFLOAT3PK_101010_NormalRead_PC(XMFLOAT3PK_101010_Normal& v)
+{
+	local string s;
+	local uint32 x = (v >> 20) & kBitMask10;
+	local uint32 y = (v >> 10) & kBitMask10;
+	local uint32 z = (v >>  0) & kBitMask10;
+	local float fx = (((x * kBitMask10Rcp) * 2.0)-1.0);
+	local float fy = (((y * kBitMask10Rcp) * 2.0)-1.0);
+	local float fz = (((z * kBitMask10Rcp) * 2.0)-1.0);
+
+	SPrintf(s, "(%g, %g, %g)", fx, fy, fz);
+	return s;
+}
+
 struct XTD_AtlasChunk(DWORD chunk_total_size)
 {
 	XMVECTOR PosCompMin;
 	XMVECTOR PosCompRange;
+	XTD_AtlasChunk_MinX = PosCompMin.x;
+	XTD_AtlasChunk_MinY = PosCompMin.y;
+	XTD_AtlasChunk_MinZ = PosCompMin.z;
+	XTD_AtlasChunk_RangeX = PosCompRange.x;
+	XTD_AtlasChunk_RangeY = PosCompRange.y;
+	XTD_AtlasChunk_RangeZ = PosCompRange.z;
 
 	local DWORD MemSize = chunk_total_size - (sizeof(XMVECTOR) * 2);
 	if (MemSize > 0)
-		BYTE Mem[ MemSize ] <optimize=true>;
+	{
+		#ifdef PCDATA
+		LittleEndian();
+		#endif
+		//BYTE Mem[ MemSize ] <optimize=true>;
+		// On X360 these are tiled
+		XMFLOAT3PK_101010_Position Positions[ (MemSize / sizeof(XMFLOAT3PK_101010_Position)) / 2 ] <optimize=true>;
+		XMFLOAT3PK_101010_Normal Normals[ (MemSize / sizeof(XMFLOAT3PK_101010_Normal)) / 2 ] <optimize=true>;
+		#ifdef PCDATA
+		BigEndian();
+		#endif
+	}
 };
 
 struct XTD_TessChunk
