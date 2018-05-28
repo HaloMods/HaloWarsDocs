@@ -171,7 +171,6 @@ struct UGX_CachedDataHeaderV6
 	int16 MaxInstances;
 	int16 InstanceIndexMultiplier;
 	int16 LargeGeomBoneIndex;
-	// not positive all these flags carried over from HW1 or new ones weren't inserted
 	bool AllSectionsRigid;
 	bool GlobalBones;
 	bool AllSectionsSkinned;
@@ -200,8 +199,7 @@ struct UGX_CachedDataSectionV6 // 0x48
 	int16 : 16;
 	float LodMinDistance;
 	float LodMaxDistance;
-	// I think this may be 8-byte alignment padding
-	uint32 I_THINK_THIS_IS_PADDING	<format=hex>;
+	float SortingBias;
 
 	PackedArrayHeader LocalToGlobalBoneRemapArray	(IS_64_BIT) <hidden=true>;
 
