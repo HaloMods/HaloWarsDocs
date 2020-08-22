@@ -1,0 +1,12 @@
+[submodule "PhxTools/KSoft"]
+	path = PhxTools/KSoft
+	url = https://github.com/KornnerStudios/KSoft.git
+[submodule "PhxTools/Games/Phoenix"]
+	path = PhxTools/Games/Phoenix
+	url = https://github.com/KornnerStudios/KSoft.Phoenix.git
+[submodule "PhxTools/Games/PhxStudio"]
+	path = PhxTools/Games/PhxStudio
+	url = https://github.com/KornnerStudios/PhxStudio.git
+[submodule "PhxTools/Games/Wwise"]
+	path = PhxTools/Games/Wwise
+	url = https://github.com/KornnerStudios/KSoft.Wwise.git

@@ -1,0 +1,19 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+[*]
+	# newline ending every file
+		insert_final_newline = true
+	# I prefer tabs, with my view set to 4 spaces. YMMV.
+		indent_style = tab
+		#tab_width = 4
+	# I do not like green eggs nor ham, nor trailing whitespace
+		trim_trailing_whitespace = true
+
+	# Non-standard configs
+
+	# I do not like K&R bracing
+		curly_bracket_next_line = true
+		indent_brace_style = Allman
