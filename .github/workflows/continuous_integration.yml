@@ -23,25 +23,25 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    - name: Checkout
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      uses: actions/checkout@v2
+      - name: Checkout
+        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+        uses: actions/checkout@v2
 
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.0.1
-      with:
-        vs-version: '[15.9,]'
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.0.1
+        with:
+          vs-version: '[15.9,]'
 
-    - name: Setup NuGet.exe for use with actions
-      # You may pin to the exact commit or the version.
-      # uses: NuGet/setup-nuget@255f46e14d51fbc603743e2aa2907954463fbeb9
-      uses: NuGet/setup-nuget@v1.0.2
+      - name: Setup NuGet.exe for use with actions
+        # You may pin to the exact commit or the version.
+        # uses: NuGet/setup-nuget@255f46e14d51fbc603743e2aa2907954463fbeb9
+        uses: NuGet/setup-nuget@v1.0.2
     
-    - name: Restore NuGet packages
-      run: nuget restore PhxTools/PhxTools.sln
+      - name: Restore NuGet packages
+        run: nuget restore PhxTools/PhxTools.sln
 
-    - name: Build PhxTools (Debug)
-      run: msbuild PhxTools/PhxTools.sln /p:Configuration=Debug
+      - name: Build PhxTools (Debug)
+        run: msbuild PhxTools/PhxTools.sln /p:Configuration=Debug
 
-    - name: Build PhxTools (Release)
-      run: msbuild PhxTools/PhxTools.sln /p:Configuration=Release
+      - name: Build PhxTools (Release)
+        run: msbuild PhxTools/PhxTools.sln /p:Configuration=Release
