@@ -7,8 +7,8 @@ name: CI
 on:
   push:
     branches: [ master ]
-    paths:
-      - 'PhxTools/**'
+    #paths:
+    #  - 'PhxTools/**'
   pull_request:
     branches: [ master ]
     paths:
