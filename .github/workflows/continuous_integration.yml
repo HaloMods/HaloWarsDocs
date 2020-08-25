@@ -18,6 +18,14 @@ on:
 jobs:
   # This workflow contains a single job called "build"
   build:
+    strategy:
+      matrix:
+        targetplatform: [AnyCPU]
+
+    env:
+      Solution_Path: PhxTools/PhxTools.sln
+      Test_Project_Path: PhxTools/Games/Phoenix/Test.KSoft.Phoenix/Test.KSoft.Phoenix.csproj
+
     # The type of runner that the job will run on
     runs-on: [windows-latest]
 
@@ -32,7 +40,7 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.0.1
         with:
-          vs-version: '[15.9,16.0)'
+          vs-version: '[15.0,16.0)'
 
       - name: Setup NuGet.exe for use with actions
         # You may pin to the exact commit or the version.
