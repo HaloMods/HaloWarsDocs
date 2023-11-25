@@ -43,17 +43,28 @@ struct XTD_XTDHeader
 
 	int NumXVerts;
 	int NumXChunks;
+	float TessRangeFactor;
+	float MaxTessFactor;
 	float TileScale;
-	WorldBB World; // this probably isn't right
+	WorldBB World; // The editor writes this, but the game does not actually use it
 };
 
 typedef struct
 {
 	int GridX, GridZ;
-	AABB M;
-	float Unknown8;
-	XMVECTOR Unknown9;
-	XMVECTOR Unknown10;
+	AABB BBox;
+	float NormalsVariance;
+
+	// Neighbour faces:
+	//North = 0,
+	//South,
+	//East,
+	//West,
+	//NorthEast,
+	//NorthWest,
+	//SouthEast,
+	//SouthWest,
+	float NeighbourNormalsVariances[8];
 } XTD_TerrainChunk <name=XTD_TerrainChunkGetName>;
 string XTD_TerrainChunkGetName(XTD_TerrainChunk& chunk)
 {
@@ -64,16 +75,14 @@ string XTD_TerrainChunkGetName(XTD_TerrainChunk& chunk)
 
 struct XTD_AtlasChunk(int numXVerts)
 {
-	// I think these may be individual streams of X, Y, and Z?
+	if (numXVerts > 0)
+		float Heightfield[numXVerts*numXVerts] <optimize=true>;
 
 	if (numXVerts > 0)
-		float Mem0[numXVerts*numXVerts] <optimize=true>;
+		float Normals[numXVerts*numXVerts] <optimize=true>;
 
 	if (numXVerts > 0)
-		float Mem1[numXVerts*numXVerts] <optimize=true>;
-
-	if (numXVerts > 0)
-		float Mem2[numXVerts*numXVerts] <optimize=true>;
+		float Tangents[numXVerts*numXVerts] <optimize=true>;
 };
 
 struct XTD_TessChunk
@@ -91,7 +100,7 @@ struct XTD_TessChunk
 		BYTE MaxPatchTessallation[ numQuads ] <optimize=true>;
 
 	if (numQuads > 0)
-		PatchBB PatchBBs[ numQuads ] <optimize=true>; 
+		PatchBB PatchBBs[ numQuads ] <optimize=true>;
 };
 
 struct ECF_XTD

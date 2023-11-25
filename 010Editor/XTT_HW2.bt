@@ -15,14 +15,15 @@
 #define WELL_KNOWN_ECF
 #include "ECF.bt"
 
+// eGfxTextureFormat
 enum eDDXDataFormat_HW2
 {
 	cDDXDataFormatInvalid = 0,
 	R8 = 1,
 	A8 = 2,
 	R8G8 = 3,
-	//4
-	//5
+	B8G8R8A8 = 4,
+	B8G8R8X8 = 5,
 	R8G8B8A8 = 6,
 	R8G8B8A8_SRGB = 7,
 	R16G16 = 8,
@@ -79,8 +80,8 @@ DWORD DDXDataFormatGetBitsPerPixel(eDDXDataFormat_HW2 format)
 		case R16F:
 			return 16;
 
-		case 4:
-		case 5:
+		case B8G8R8A8:
+		case B8G8R8X8:
 		case R8G8B8A8:
 		case R8G8B8A8_SRGB:
 		case R16G16:
@@ -113,6 +114,10 @@ DWORD DDXDataFormatGetBitsPerPixel(eDDXDataFormat_HW2 format)
 	//D24S8,D32F,D32FS8,R16
 	return 0;
 }
+int TextureCompositor::calculateCompositeTileIndex(int x, int z) const
+{
+	return z * mVirtualTexDimensionsInCompositeTiles.width + x;
+}
 
 typedef struct
 {
@@ -133,7 +138,7 @@ enum
 
 	cXTT_AtlasChunkAlbedo      = 0x6666,
 
-	cXTT_CCCC                  = 0xCCCC,
+	cXTT_DecalChunk            = 0xCCCC,
 
 	cAlphaLayersFormat = R8G8B8A8, // HW1 = D3DFMT_A4R4G4B4
 	cAlphaTextureWidth = 64,
@@ -147,35 +152,42 @@ struct XTT_XTTHeader
 		return;
 
 	int NumTextures;
-	//[AL], [NM], [SP], [PM], [PA], [BT]
+	// [AL] - Albedo
+	// [NM] - Normal
+	// [SP] - Specular
+	// [PM] - PBR Parameters
+	// [PA] - Parallax
+	// [BT] - Blend
 	if (NumTextures > 0)
 		XTT_TextureFileName Textures[ NumTextures ] <optimize=true>;
 
-	int Unknown0;
-	int Unknown1;
-	int Unknown2;
+	int CompositeTileSize;
+	int VirtualTexDimensionsInCompositeTilesWidth;
+	int VirtualTexDimensionsInCompositeTilesHeight;
 };
 
 typedef struct
 {
 	local int64 chunkStart = FTell();
 
-	int GridX, GridZ;
-	int NumUnknown0Layers;
-	int NumUnknown1Layers;
+	// Yeah...HoganEditor writes the composite tiles as Z then X!
+	// Composite Tile Index = (GridX * XTT_XTTHeader::VirtualTexDimensionsInCompositeTilesWidth + GridZ)
+	int GridZ, GridX;
+	int NumSplatLayers;
+	int NumDecalLayers;
 
-	if (NumUnknown1Layers > 0)
-		int Unknown1LayerIds[ NumUnknown1Layers ] <optimize=true>;
+	if (NumDecalLayers > 0)
+		int DecalLayerIds[ NumDecalLayers ] <optimize=true>;
 
-	if (NumUnknown0Layers > 0)
-		int Unknown0LayerIds[ NumUnknown0Layers ] <optimize=true>;
+	if (NumSplatLayers > 0)
+		int SplatLayerIds[ NumSplatLayers ] <optimize=true>;
 
-	if (NumUnknown0Layers <= 1)
+	if (NumSplatLayers <= 1)
 		return;
 
-	if (NumUnknown0Layers > 0)
+	if (NumSplatLayers > 0)
 	{
-		local int numAlignedLayers = ((NumUnknown0Layers-1)>>2)+1;
+		local int numAlignedLayers = ((NumSplatLayers-1)>>2)+1;
 		local DWORD memSize = DDXDataFormatGetBitsPerPixel(cAlphaLayersFormat);
 		memSize *= cAlphaTextureWidth;
 		memSize *= cAlphaTextureHeight;
@@ -226,26 +238,31 @@ struct XTT_AtlasChunkAlbedo
 		BYTE PermanentParallax[ PermanentParallaxSize ] <optimize=true>;
 };
 
-struct XTT_CCCC
+struct XTT_DecalChunk
 {
 	int NumTextures;
 	if (NumTextures > 0)
 	{
-		//[AL], [NM], [SP], [PM], [PA], [NA]
+		// [AL] - Albedo
+		// [NM] - Normal
+		// [SP] - Specular
+		// [PM] - PBR Parameters
+		// [PA] - Parallax
+		// [NA] - Normal (Alpha). All other material textures contain their own blend information for compositing in the alpha channel.
 		XTT_TextureFileName Textures[ NumTextures ] <optimize=true>;
 
-		struct UnknownStruct
+		struct DecalInstance
 		{
-			int Unknown0;
-			float Unknown1;
-			float Unknown2;
-			float Unknown3;
-			float Unknown4;
-			float Unknown5;
+			int TextureIndex; // should be < NumTextures
+			float Rotation;
+			float HalfWorldSpaceWidth;
+			float HalfWorldSpaceHeight;
+			float WorldSpaceCenterX;
+			float WorldSpaceCenterZ;
 		};
-		int NumUnknownStruct;
-		if (NumUnknownStruct > 0)
-			UnknownStruct Unknown0[ NumUnknownStruct ] <optimize=true>;
+		int NumDecalInstance;
+		if (NumDecalInstance > 0)
+			DecalInstance DecalInstances[ NumDecalInstance ] <optimize=true>;
 	}
 };
 
@@ -279,8 +296,8 @@ struct ECF_XTT_HW2
 			case cXTT_AtlasChunkAlbedo:
 				XTT_AtlasChunkAlbedo AtlasChunkAlbedo;
 				break;
-			case cXTT_CCCC:
-				XTT_CCCC CCCC;
+			case cXTT_DecalChunk:
+				XTT_DecalChunk DecalChunk;
 				break;
 
 			case cXTT_XTTHeader:

@@ -28,7 +28,7 @@ enum
 	cXSD_Buildable       = 0xCCCC, // BYTE [NumXDataTiles^2]
 	//0xDDDD unused
 	//0xEEEE unused
-	cXSD_FFFF            = 0xFFFF, // HW2
+	cXSD_Cliffs          = 0xFFFF, // HW2
 };
 
 struct XSD_XSDHeader
@@ -58,10 +58,13 @@ typedef struct
 		HALF Heights[ NumCacheFriendlyXVerts * NumCacheFriendlyXVerts ] <optimize=true>;
 } XSD_CamHeights, XSD_FlightHeights;
 
-struct XSD_FFFF
+struct XSD_Cliffs
 {
 	DWORD Count;
 
+	// AABB.Min = BottomPosition
+	// AABB.Max = TopPosition
+	// Cliff Direction vector = (Bottom - Top), with Y=0, then normalized
 	if (Count > 0)
 		AABB Bounds[Count] <optimize=true>;
 };
@@ -108,8 +111,8 @@ struct ECF_XSD
 				BYTE Buildable[Header.NumXDataTiles * Header.NumXDataTiles] <optimize=true>;
 				break;
 
-			case cXSD_FFFF:
-				XSD_FFFF UnknownFFFF;
+			case cXSD_Cliffs:
+				XSD_Cliffs Cliffs;
 				break;
 
 			case cXSD_XSDHeader:
