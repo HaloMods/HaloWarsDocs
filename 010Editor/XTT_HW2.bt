@@ -114,10 +114,6 @@ DWORD DDXDataFormatGetBitsPerPixel(eDDXDataFormat_HW2 format)
 	//D24S8,D32F,D32FS8,R16
 	return 0;
 }
-int TextureCompositor::calculateCompositeTileIndex(int x, int z) const
-{
-	return z * mVirtualTexDimensionsInCompositeTiles.width + x;
-}
 
 typedef struct
 {
