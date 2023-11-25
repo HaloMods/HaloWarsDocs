@@ -40,7 +40,7 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.0.1
         with:
-          vs-version: '[16.0,16.0)'
+          vs-version: '[17.0,17.0)'
 
       - name: Setup NuGet.exe for use with actions
         # You may pin to the exact commit or the version.
