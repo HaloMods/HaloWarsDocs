@@ -1,0 +1,303 @@
+//------------------------------------------------
+//--- 010 Editor Binary Template
+//
+//      File: FBX0_BIN.bt
+//    Author: kornman00
+//   Version: 1.0
+//   Purpose: Parse HaloWars DE shader .bin files.
+//  Category: HaloWars
+//  ID Bytes: 66 78 62 30 01 00 00 00
+//
+// More information available at
+//  https://github.com/KornnerStudios/HaloWarsDocs
+//------------------------------------------------
+
+enum
+{
+	cFxEffectBinHeaderSignature = 0x66786230, // 'fxb0'
+	cFxEffectBinHeaderVersion = 1,
+};
+struct BFxEffectBinHeader
+{
+	uint32 Signature <format=hex>;
+	uint32 Version <format=hex>;
+};
+
+LittleEndian();
+BFxEffectBinHeader Header;
+if (Header.Signature != SwapBytes(cFxEffectBinHeaderSignature) ||
+	Header.Version != cFxEffectBinHeaderVersion)
+{
+	return;
+}
+
+///////////////////////////////////////////////////////////
+// BFxEffect Arrays
+	struct BFxEffectArrayBase
+	{
+		uint32 Size;
+	};
+	struct BFxEffectByteArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BYTE Data[ Base.Size ];
+		}
+	};
+	struct BFxEffectUInt32Array
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			uint32 Data[ Base.Size ];
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectString
+	typedef struct
+	{
+		uint32 Length;
+		if (Length > 0)
+		{
+			char Value[ Length ];
+		}
+	} BFxEffectString <read=BFxEffectStringToString>;
+	string BFxEffectStringToString(BFxEffectString& String)
+	{
+		local string s = "EMPTY";
+		if (String.Length > 0)
+		{
+			SPrintf(s, "%s", String.Value);
+		}
+		return s;
+	}
+
+///////////////////////////////////////////////////////////
+// BFxEffectStringAndUIntPair
+	typedef struct
+	{
+		BFxEffectString Key;
+		uint32 Value;
+	} BFxEffectStringAndUIntPair <read=BFxEffectStringAndUIntPairToString>;
+	string BFxEffectStringAndUIntPairToString(BFxEffectStringAndUIntPair& Pair)
+	{
+		local string s = "BAD DATA";
+		SPrintf(s, "%s %08Xh",
+			BFxEffectStringToString(Pair.Key),
+			Pair.Value);
+		return s;
+	}
+
+	struct BFxEffectStringAndUIntPairArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectStringAndUIntPair Pairs[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectResource
+	enum <uint8> BFxEffectResourceType
+	{
+		BFxEffectResourceType_BlendState,
+		BFxEffectResourceType_DepthStencilState,
+		BFxEffectResourceType_RasterizerState,
+		BFxEffectResourceType_SamplerState,
+		BFxEffectResourceType_VertexShader,
+		BFxEffectResourceType_HullShader,
+		BFxEffectResourceType_DomainShader,
+		BFxEffectResourceType_GeometryShader,
+		BFxEffectResourceType_PixelShader,
+		BFxEffectResourceType_ComputeShader,
+		BFxEffectResourceType_ConstantBuffer,
+		BFxEffectResourceType_Texture,
+		BFxEffectResourceType_ResourceView,
+		BFxEffectResourceType_UnorderedAccessView,
+		BFxEffectResourceType_INVALID
+	};
+
+	typedef struct
+	{
+		BFxEffectString ResourceTypeString; // BFxEffectResourceType
+		BFxEffectByteArray Data;
+		BFxEffectUInt32Array Parameters;
+		BFxEffectUInt32Array UpdateStamps;
+		BFxEffectUInt32Array Offsets;
+	} BFxEffectResource <read=BFxEffectResourceToString>;
+	string BFxEffectResourceToString(BFxEffectResource& Resource)
+	{
+		/*local string s = "BAD DATA";
+		if (Resource.ResourceTypeString.Length > 0)
+		{
+			SPrintf(s, "%s", Resource.ResourceTypeString.Value);
+		}*/
+		return BFxEffectStringToString(Resource.ResourceTypeString);
+	}
+
+	struct BFxEffectResourceArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectResource Items[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectParameter
+	enum <uint8> BFxEffectParameterType
+	{
+		BFxEffectParameterType_Bool,
+		BFxEffectParameterType_Float,
+		BFxEffectParameterType_Vec2,
+		BFxEffectParameterType_Vec3,
+		BFxEffectParameterType_Vec4,
+		BFxEffectParameterType_Int,
+		BFxEffectParameterType_IntVec4,
+		BFxEffectParameterType_Mat3x4,
+		BFxEffectParameterType_Mat4x4,
+		BFxEffectParameterType_Resource,
+		BFxEffectParameterType_INVALID
+	};
+
+	typedef struct
+	{
+		BFxEffectString ParameterTypeString; // BFxEffectParameterType
+		BFxEffectString ResourceTypeString; // BFxEffectResourceType
+		uint32 Offset;
+		uint32 Count;
+		uint32 Size;
+		uint32 UpdateStamp;
+	} BFxEffectParameter <read=BFxEffectParameterToString>;
+	string BFxEffectParameterToString(BFxEffectParameter& Parameter)
+	{
+		local string s = "BAD DATA";
+		SPrintf(s, "%s (%s)",
+			BFxEffectStringToString(Parameter.ParameterTypeString),
+			BFxEffectStringToString(Parameter.ResourceTypeString));
+		return s;
+	}
+
+	struct BFxEffectParameterArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectParameter Items[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectBinding
+	enum <uint8> BFxEffectPipelineStage
+	{
+		BFxEffectPipelineStage_VertexShader,
+		BFxEffectPipelineStage_HullShader,
+		BFxEffectPipelineStage_DomainShader,
+		BFxEffectPipelineStage_GeometryShader,
+		BFxEffectPipelineStage_PixelShader,
+		BFxEffectPipelineStage_ComputeShader,
+		BFxEffectPipelineStage_Global,
+		BFxEffectPipelineStage_INVALID
+	};
+
+	typedef struct
+	{
+		BFxEffectString Name;
+		uint32 Index;
+		BFxEffectString ResourceTypeString; // BFxEffectResourceType
+		BFxEffectString Stage; // BFxEffectPipelineStage
+		uint32 Slot;
+		uint32 Count;
+	} BFxEffectBinding <read=BFxEffectBindingToString>;
+	string BFxEffectBindingToString(BFxEffectBinding& Binding)
+	{
+		local string s = "BAD DATA";
+		SPrintf(s, "%s (%s) (%s)",
+			BFxEffectStringToString(Binding.Name),
+			BFxEffectStringToString(Binding.ResourceTypeString),
+			BFxEffectStringToString(Binding.Stage));
+		return s;
+	}
+
+	struct BFxEffectBindingArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectBinding Items[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectLink
+	struct BFxEffectLink
+	{
+		uint32 Pool;
+		uint32 Index;
+		uint32 Binding;
+		uint32 Native;
+		uint32 UpdateStamp;
+	};
+
+	struct BFxEffectLinkArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectLink Items[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectPass
+	struct BFxEffectPass
+	{
+		BFxEffectBindingArray Bindings;
+		BFxEffectLinkArray ResourceLinks;
+		BFxEffectLinkArray ParameterLinks;
+	};
+
+	struct BFxEffectPassArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectPass Items[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// BFxEffectTechnique
+	struct BFxEffectTechnique
+	{
+		BFxEffectPassArray PassesItems;
+		BFxEffectStringAndUIntPairArray PassesNames;
+	};
+
+	struct BFxEffectTechniqueArray
+	{
+		BFxEffectArrayBase Base <hidden=true>;
+		if (Base.Size > 0)
+		{
+			BFxEffectTechnique Items[ Base.Size ] <optimize=false>;
+		}
+	};
+
+///////////////////////////////////////////////////////////
+// layout
+
+BFxEffectResourceArray ResourcesItems;
+BFxEffectStringAndUIntPairArray ResourcesNames;
+
+BFxEffectParameterArray ParameterItems;
+BFxEffectStringAndUIntPairArray ParameterNames;
+
+BFxEffectByteArray Storage;
+
+BFxEffectTechniqueArray TechniquesItems;
+BFxEffectStringAndUIntPairArray TechniquesNames;
