@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
+	<!-- <Import Project="$(MSBuildThisFileDirectory)\KSoft\KSoft.BCL.props" /> -->
 	<PropertyGroup>
-		<VitaNugetPackagesDir>$(MSBuildThisFileDirectory)\packages</VitaNugetPackagesDir>
+		<VitaNugetPackagesDir>$(MSBuildThisFileDirectory)packages</VitaNugetPackagesDir>
 	</PropertyGroup>
+
+	<Import Project="$(MSBuildThisFileDirectory)KSoft/shared/config/msbuild/VitaCommon.props" />
+
 </Project>

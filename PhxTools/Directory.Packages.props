@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<PropertyGroup>
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+		<!-- MSTest.Sdk injects its package set with VersionOverride metadata. -->
+		<CentralPackageVersionOverrideEnabled
+			Condition=" '$(UsingMSTestSdk)' != 'true' "
+			>false</CentralPackageVersionOverrideEnabled>
+		<CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+	</PropertyGroup>
+
+	<ItemGroup Label="KSoft">
+		<PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+		<PackageVersion Include="Caliburn.Micro.Core" Version="4.0.210" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+		<PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+		<PackageVersion Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
+	</ItemGroup>
+
+	<ItemGroup Label="Blam and Phoenix tools">
+		<PackageVersion Include="Mono.Options" Version="6.12.0.148" />
+	</ItemGroup>
+
+	<ItemGroup Label="PhxStudio">
+		<!-- 5.0.258 is available, but Gemini 1.0.76-beta requires Caliburn.Micro 4.0.210. -->
+		<PackageVersion Include="Caliburn.Micro" Version="4.0.210" />
+		<PackageVersion Include="Dirkster.AvalonDock" Version="4.72.1" />
+		<PackageVersion Include="DotNetProjects.Extended.Wpf.Toolkit" Version="5.0.129" />
+		<PackageVersion Include="Gemini.Modules.ErrorList" Version="1.0.76-beta" />
+		<PackageVersion Include="Gemini.Modules.Inspector" Version="1.0.76-beta" />
+		<PackageVersion Include="Gemini.Modules.Output" Version="1.0.76-beta" />
+		<PackageVersion Include="GeminiWpf" Version="1.0.76-beta" />
+		<PackageVersion Include="MahApps.Metro" Version="2.4.11" />
+		<PackageVersion Include="System.Waf.Wpf" Version="8.1.0" />
+	</ItemGroup>
+</Project>

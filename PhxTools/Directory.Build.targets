@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<PropertyGroup>
+		<_VitaOwnsPackageLock
+			Condition=" '$(OutputType)' == 'Exe'
+				Or '$(OutputType)' == 'WinExe'
+				Or '$(IsRoslynComponent)' == 'true' "
+			>true</_VitaOwnsPackageLock>
+
+		<RestorePackagesWithLockFile
+			Condition=" '$(_VitaOwnsPackageLock)' == 'true' "
+			>true</RestorePackagesWithLockFile>
+		<RestoreLockedMode
+			Condition=" '$(_VitaOwnsPackageLock)' == 'true'
+				And '$(RuntimeIdentifier)' == ''
+				And '$(ContinuousIntegrationBuild)' == 'true' "
+			>true</RestoreLockedMode>
+
+		<NuGetLockFilePath
+			Condition=" '$(_VitaOwnsPackageLock)' == 'true'
+				And '$(RuntimeIdentifier)' != '' "
+			>$(BaseIntermediateOutputPath)packages.$(RuntimeIdentifier).lock.json</NuGetLockFilePath>
+	</PropertyGroup>
+
+	<Target Name="VitaRejectProjectPackageVersionOverrides"
+			BeforeTargets="CollectPackageReferences"
+			Condition=" '$(UsingMSTestSdk)' == 'true' ">
+		<ItemGroup>
+			<_VitaDisallowedPackageVersionOverride
+				Include="@(PackageReference)"
+				Condition=" '%(PackageReference.VersionOverride)' != ''
+					And '%(PackageReference.Sdk)' != 'MSTest' " />
+		</ItemGroup>
+		<Error Code="VITA0003"
+				Condition=" '@(_VitaDisallowedPackageVersionOverride)' != '' "
+				Text="Project-authored PackageReference VersionOverride values are not allowed: @(_VitaDisallowedPackageVersionOverride)." />
+	</Target>
+
+	<Target Name="VitaRejectUnownedPackageLocks"
+			BeforeTargets="CollectPackageReferences">
+		<Error Code="VITA0004"
+				Condition=" '$(_VitaOwnsPackageLock)' != 'true'
+					And Exists('$(MSBuildProjectDirectory)\packages.lock.json') "
+				Text="$(MSBuildProjectName) is an ordinary library and must not commit packages.lock.json." />
+	</Target>
+</Project>
