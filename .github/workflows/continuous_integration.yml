@@ -1,57 +1,104 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CI
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
 on:
   push:
-    branches: [ master ]
-    #paths:
-    #  - 'PhxTools/**'
+    branches:
+      - "main"
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
   pull_request:
-    branches: [ master ]
-    paths:
-      - 'PhxTools/**'
+    branches:
+      - "main"
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+  workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+env:
+  SOLUTION_FILE_PATH: PhxTools.sln
+  ContinuousIntegrationBuild: true
+  BUILD_PLATFORM: AnyCPU
+
+permissions:
+  contents: read
+
 jobs:
-  # This workflow contains a single job called "build"
-  build:
+  build_and_test:
+    name: Build and Test PhxTools (${{ matrix.toolset.name }}, ${{ matrix.build-configuration }})
+    runs-on: ${{ matrix.toolset.runner }}
+    defaults:
+      run:
+        working-directory: PhxTools
     strategy:
       matrix:
-        targetplatform: [AnyCPU]
+        dotnet-version: [ '10.0.x' ]
+        build-configuration: [ 'Debug', 'Release' ]
+        toolset:
+          - name: vs2022
+            runner: windows-2022
+          - name: vs2026
+            runner: windows-2025
 
-    env:
-      Solution_Path: PhxTools/PhxTools.sln
-      Test_Project_Path: PhxTools/Games/Phoenix/Test.KSoft.Phoenix/Test.KSoft.Phoenix.csproj
-
-    # The type of runner that the job will run on
-    runs-on: [windows-latest]
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - name: Checkout
-        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-        uses: actions/checkout@v2.3.2
-        with:
-          submodules: 'true'
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: true
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.0.1
-        with:
-          vs-version: '[17.0,17.0)'
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: ${{ matrix.dotnet-version }}
+        cache: true
+        cache-dependency-path: "PhxTools/**/packages.lock.json"
 
-      - name: Setup NuGet.exe for use with actions
-        # You may pin to the exact commit or the version.
-        # uses: NuGet/setup-nuget@255f46e14d51fbc603743e2aa2907954463fbeb9
-        uses: NuGet/setup-nuget@v1.0.2
-    
-      - name: Restore NuGet packages
-        run: nuget restore PhxTools/PhxTools.sln
+    - name: Install dependencies
+      # Directory.Build.targets enables locked mode for approved lock owners in CI.
+      run: >-
+        dotnet restore ${{ env.SOLUTION_FILE_PATH }}
+        -p:Configuration=${{ matrix.build-configuration }}
+        -p:Platform=${{ env.BUILD_PLATFORM }}
 
-      - name: Build PhxTools (Debug)
-        run: msbuild PhxTools/PhxTools.sln /p:Configuration=Debug
+    - name: Build PhxTools AnyCPU
+      run: >-
+        dotnet build ${{ env.SOLUTION_FILE_PATH }}
+        -p:Configuration=${{ matrix.build-configuration }}
+        -p:Platform=${{ env.BUILD_PLATFORM }}
+        --no-restore
+        -m
 
-      - name: Build PhxTools (Release)
-        run: msbuild PhxTools/PhxTools.sln /p:Configuration=Release
+    # MTP-specific arguments follow the additional -- separator.
+    - name: Test
+      run: >-
+        dotnet test ${{ env.SOLUTION_FILE_PATH }}
+        -p:Configuration=${{ matrix.build-configuration }}
+        -p:Platform=${{ env.BUILD_PLATFORM }}
+        --no-build
+        --no-restore
+        --verbosity normal
+        --
+        --filter "TestCategory!=ExcludedFromAppveyor"
+
+    - name: Print test logs on failure
+      if: failure()
+      shell: pwsh
+      run: |
+        $logs = Get-ChildItem -Path "${{ github.workspace }}" -Recurse -File |
+          Where-Object {
+            $_.FullName -match '[\\/](TestResults)[\\/]' -and
+            $_.Extension -in '.log', '.trx', '.xml'
+          }
+
+        if (!$logs) {
+          Write-Host "No test result logs found."
+          exit 0
+        }
+
+        foreach ($log in $logs) {
+          Write-Host "::group::$($log.FullName)"
+          Get-Content -LiteralPath $log.FullName -Raw
+          Write-Host "::endgroup::"
+        }
