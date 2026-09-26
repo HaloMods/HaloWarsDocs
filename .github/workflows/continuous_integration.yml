@@ -4,17 +4,17 @@ on:
   push:
     branches:
       - "main"
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.gitignore"
-      - "**/*.gitattributes"
+    paths:
+      - "PhxTools/**"
+      - ".github/workflows/**"
+      - ".gitmodules"
   pull_request:
     branches:
       - "main"
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.gitignore"
-      - "**/*.gitattributes"
+    paths:
+      - "PhxTools/**"
+      - ".github/workflows/**"
+      - ".gitmodules"
   workflow_dispatch:
 
 env:
